@@ -16,6 +16,7 @@
  */
 package org.jkiss.dbeaver.ext.mssql.edit;
 
+import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.ext.mssql.SQLServerUtils;
@@ -38,7 +39,6 @@ import org.jkiss.dbeaver.model.struct.DBSObject;
 import org.jkiss.dbeaver.model.struct.cache.DBSObjectCache;
 import org.jkiss.utils.CommonUtils;
 
-import java.sql.SQLException;
 import java.sql.Types;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +81,16 @@ public class SQLServerTableColumnManager extends SQLTableColumnManager<SQLServer
         }
     };
 
+    protected final ColumnModifier<SQLServerTableColumn> ComputedModifier = (monitor, column, sql, command) -> {
+        final String definition = column.getComputedDefinition();
+        if (CommonUtils.isNotEmpty(definition)) {
+            sql.append(" AS ").append(definition);
+        }
+        if (column.isComputedPersisted()) {
+            sql.append(" PERSISTED");
+        }
+    };
+
     @Nullable
     @Override
     public DBSObjectCache<? extends DBSObject, SQLServerTableColumn> getObjectsCache(SQLServerTableColumn object)
@@ -90,6 +100,9 @@ public class SQLServerTableColumnManager extends SQLTableColumnManager<SQLServer
 
     protected ColumnModifier[] getSupportedModifiers(SQLServerTableColumn column, Map<String, Object> options)
     {
+        if (CommonUtils.isNotEmpty(column.getComputedDefinition())) {
+            return new ColumnModifier[]{ComputedModifier, NotNullModifier};
+        }
         return new ColumnModifier[] {DataTypeModifier, IdentityModifier, CollateModifier, SQLServerDefaultModifier, NullNotNullModifier};
     }
 
@@ -140,8 +153,8 @@ public class SQLServerTableColumnManager extends SQLTableColumnManager<SQLServer
                 oldConstraintName = JDBCUtils.queryString(session, "SELECT name FROM " +
                     SQLServerUtils.getSystemTableName(column.getTable().getDatabase(), "DEFAULT_CONSTRAINTS") +
                     " WHERE PARENT_OBJECT_ID = ? AND PARENT_COLUMN_ID = ?", column.getTable().getObjectId(), column.getObjectId());
-            } catch (SQLException e) {
-                log.error(e);
+            } catch (Exception e) {
+                log.error("Error reading default constraints", e);
             }
 
             if (oldConstraintName != null) {
@@ -170,10 +183,10 @@ public class SQLServerTableColumnManager extends SQLTableColumnManager<SQLServer
                 new SQLDatabasePersistAction(
                     "Add column comment",
                     "EXEC " + SQLServerUtils.getSystemTableName(column.getTable().getDatabase(), isUpdate ? "sp_updateextendedproperty" : "sp_addextendedproperty") +
-                        " 'MS_Description', N" + SQLUtils.quoteString(command.getObject(), command.getObject().getDescription()) + "," +
-                        " 'schema', N'" + column.getTable().getSchema().getName() + "'," +
-                        " 'table', N'" + column.getTable().getName() + "'," +
-                        " 'column', N'" + column.getName() + "'"));
+                        " 'MS_Description', " + SQLUtils.quoteString(column, column.getDescription()) + "," +
+                        " 'schema', " + SQLUtils.quoteString(column, column.getTable().getSchema().getName()) + "," +
+                        " 'table', " + SQLUtils.quoteString(column, column.getTable().getName()) + "," +
+                        " 'column', " + SQLUtils.quoteString(column, column.getName())));
         }
         if (totalProps > 0) {
             actionList.add(new SQLDatabasePersistAction(
@@ -184,8 +197,8 @@ public class SQLServerTableColumnManager extends SQLTableColumnManager<SQLServer
     }
 
     @Override
-    public void renameObject(DBECommandContext commandContext, SQLServerTableColumn object, String newName) throws DBException {
-        processObjectRename(commandContext, object, newName);
+    public void renameObject(@NotNull DBECommandContext commandContext, @NotNull SQLServerTableColumn object, @NotNull Map<String, Object> options, @NotNull String newName) throws DBException {
+        processObjectRename(commandContext, object, options, newName);
     }
 
     @Override

@@ -18,6 +18,7 @@ package org.jkiss.dbeaver.data.gis.handlers;
 
 import org.jkiss.code.NotNull;
 import org.jkiss.dbeaver.Log;
+import org.jkiss.dbeaver.model.DBUtils;
 import org.jkiss.dbeaver.model.data.DBDDisplayFormat;
 import org.jkiss.dbeaver.model.exec.DBCException;
 import org.jkiss.dbeaver.model.exec.DBCSession;
@@ -29,11 +30,11 @@ import org.jkiss.dbeaver.model.impl.jdbc.data.JDBCContentBytes;
 import org.jkiss.dbeaver.model.impl.jdbc.data.handlers.JDBCAbstractValueHandler;
 import org.jkiss.dbeaver.model.struct.DBSTypedObject;
 import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.io.ParseException;
-import org.locationtech.jts.io.WKBReader;
-import org.locationtech.jts.io.WKBWriter;
-import org.locationtech.jts.io.WKTReader;
+import org.locationtech.jts.io.*;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.sql.SQLException;
 
 /**
@@ -46,13 +47,11 @@ public class GISGeometryValueHandler extends JDBCAbstractValueHandler {
     private int defaultSRID;
     private boolean invertCoordinates;
 
-    public GISGeometryValueHandler() {
-        this(false);
-    }
-
-    public GISGeometryValueHandler(boolean invertCoordinates) {
-        this.invertCoordinates = invertCoordinates;
-    }
+    /**
+     * This is mostly MySQL-specific thing because it has a special spatial data format [SRID] [WKB]
+     * http://www.dev-garden.org/2011/11/27/loading-mysql-spatial-data-with-jdbc-and-jts-wkbreader/
+     */
+    private boolean leadingSRID;
 
     public boolean isFlipCoordinates() {
         return invertCoordinates;
@@ -68,6 +67,14 @@ public class GISGeometryValueHandler extends JDBCAbstractValueHandler {
 
     public void setInvertCoordinates(boolean invertCoordinates) {
         this.invertCoordinates = invertCoordinates;
+    }
+
+    public boolean isLeadingSRID() {
+        return leadingSRID;
+    }
+
+    public void setLeadingSRID(boolean leadingSRID) {
+        this.leadingSRID = leadingSRID;
     }
 
     @Override
@@ -115,7 +122,7 @@ public class GISGeometryValueHandler extends JDBCAbstractValueHandler {
             }
         } else if (object instanceof Geometry) {
             geometry = new DBGeometry((Geometry)object);
-        } else if (object instanceof byte[] || object instanceof JDBCContentBytes) {
+        } else if (object instanceof byte[] || (object instanceof JDBCContentBytes && !DBUtils.isNullValue(object))) {
             byte[] bytes;
             if (object instanceof JDBCContentBytes) {
                 bytes = ((JDBCContentBytes) object).getRawValue();
@@ -148,15 +155,53 @@ public class GISGeometryValueHandler extends JDBCAbstractValueHandler {
     }
 
     protected Geometry convertGeometryFromBinaryFormat(DBCSession session, byte[] object) throws DBCException {
-        try {
-            return new WKBReader().read(object);
-        } catch (ParseException e) {
+        try (ByteArrayInputStream is = new ByteArrayInputStream(object)) {
+            int srid = 0;
+
+            if (leadingSRID) {
+                // Read SRID with little endian order (the least significant bytes come first)
+                srid |= is.read();
+                srid |= is.read() << 8;
+                srid |= is.read() << 16;
+                srid |= is.read() << 24;
+            }
+
+            final Geometry geometry = new WKBReader().read(new InputStreamInStream(is));
+
+            if (leadingSRID && srid > 0) {
+                geometry.setSRID(srid);
+            }
+
+            return geometry;
+        } catch (Exception e) {
             throw new DBCException("Error reading geometry from binary data", e);
         }
     }
 
     protected byte[] convertGeometryToBinaryFormat(DBCSession session, Geometry geometry) throws DBCException {
-        return new WKBWriter(2 /* default */, geometry.getSRID() > 0).write(geometry);
+        try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+            final int srid = geometry.getSRID();
+
+            if (leadingSRID) {
+                // Write SRID with little endian order (the least significant bytes come first)
+                os.write((byte) (srid));
+                os.write((byte) (srid >> 8));
+                os.write((byte) (srid >> 16));
+                os.write((byte) (srid >> 24));
+            }
+
+            final WKBWriter writer = new WKBWriter(
+                2 /* default */,
+                !leadingSRID ? ByteOrderValues.BIG_ENDIAN : ByteOrderValues.LITTLE_ENDIAN,
+                !leadingSRID && srid > 0
+            );
+
+            writer.write(geometry, new OutputStreamOutStream(os));
+
+            return os.toByteArray();
+        } catch (IOException e) {
+            throw new DBCException("Error writing geometry to binary data", e);
+        }
     }
 
     @NotNull
@@ -164,7 +209,7 @@ public class GISGeometryValueHandler extends JDBCAbstractValueHandler {
     public String getValueDisplayString(@NotNull DBSTypedObject column, Object value, @NotNull DBDDisplayFormat format) {
         if (value instanceof DBGeometry && format == DBDDisplayFormat.NATIVE) {
             return "'" + value.toString() + "'";
-        } else if (value instanceof JDBCContentBytes) {
+        } else if (value instanceof JDBCContentBytes && !DBUtils.isNullValue(value)) {
             byte[] bytes = ((JDBCContentBytes) value).getRawValue();
             if (bytes.length != 0) {
                 try {

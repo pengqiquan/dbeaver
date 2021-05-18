@@ -42,6 +42,7 @@ public class DataEditorsMessages extends NLS {
     // ResultSetGrid
     public static String pref_page_database_resultsets_group_grid;
     public static String pref_page_database_resultsets_label_mark_odd_rows;
+    public static String pref_page_database_resultsets_label_highlight_rows_with_selected_cells;
     public static String pref_page_database_resultsets_label_colorize_data_types;
     public static String pref_page_database_resultsets_label_row_batch_size;
     public static String pref_page_database_resultsets_label_row_batch_size_tip;
@@ -56,12 +57,18 @@ public class DataEditorsMessages extends NLS {
     public static String pref_page_database_resultsets_label_use_smooth_scrolling_tip;
     public static String pref_page_database_resultsets_label_show_boolean_as_checkbox;
     public static String pref_page_database_resultsets_label_show_boolean_as_checkbox_tip;
+    public static String pref_page_database_resultsets_label_toggle_boolean_on_click;
+    public static String pref_page_database_resultsets_label_toggle_boolean_on_click_tip;
     public static String pref_page_database_resultsets_label_show_boolean_config_link;
     public static String pref_page_database_resultsets_label_double_click_behavior;
 
     public static String pref_page_result_selector_editor;
 	public static String pref_page_result_selector_inline_editor;
 	public static String pref_page_result_selector_none;
+    public static String pref_page_result_selector_copy_cell;
+    public static String pref_page_result_selector_paste_cell_value;
+    public static String pref_page_database_resultsets_label_max_def_column_width;
+    public static String pref_page_database_resultsets_label_max_def_column_width_tip;
     // ResultSetPlainText
     public static String pref_page_database_resultsets_group_plain_text;
     public static String pref_page_database_resultsets_label_value_format;
@@ -70,6 +77,8 @@ public class DataEditorsMessages extends NLS {
     public static String pref_page_database_resultsets_label_text_show_nulls;
     public static String pref_page_database_resultsets_label_text_delimiter_leading;
     public static String pref_page_database_resultsets_label_text_delimiter_trailing;
+    public static String pref_page_database_resultsets_label_text_delimiter_top;
+    public static String pref_page_database_resultsets_label_text_delimiter_bottom;
     public static String pref_page_database_resultsets_label_text_extra_spaces;
     
 	public static String virtual_structure_editor_abstract_job_load_entity;

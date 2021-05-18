@@ -36,6 +36,7 @@ public class SQLWordPartDetector extends SQLIdentifierDetector
     private String prevKeyWord = "";
     private String prevDelimiter = null;
     private List<String> prevWords = null;
+    private String nextWord;
     private String wordPart;
     private String fullWord;
     private int cursorOffset;
@@ -65,17 +66,21 @@ public class SQLWordPartDetector extends SQLIdentifierDetector
         try {
             String contentType = TextUtilities.getContentType(document, SQLParserPartitions.SQL_PARTITIONING, documentOffset, true);
             boolean inQuote = SQLParserPartitions.CONTENT_TYPE_SQL_QUOTED.equals(contentType);
+            boolean inString = SQLParserPartitions.CONTENT_TYPE_SQL_STRING.equals(contentType);
             while (startOffset >= topIndex && startOffset < documentLength) {
                 char c = document.getChar(startOffset);
-                if (inQuote) {
-                    startOffset--;
+                if (inQuote || inString) {
                     // Opening quote
-                    if (isQuote(c)) {
+                    if (inQuote ? isQuote(c) : isStringQuote(c)) {
                         break;
                     }
+                    startOffset--;
                 } else if (isQuote(c)) {
                     startOffset--;
                     inQuote = true;
+                } else if (isStringQuote(c)) {
+                    startOffset--;
+                    inString = true;
                 } else if (isWordPart(c)) {
                     startOffset--;
                 } else {
@@ -151,6 +156,31 @@ public class SQLWordPartDetector extends SQLIdentifierDetector
                 }
                 prevOffset--;
             }
+
+            // Get next keyword
+            {
+                int nextOffset = documentOffset;
+                // Skip whitespaces
+                while (nextOffset < documentLength) {
+                    char ch = document.getChar(nextOffset);
+                    if (!isWordPart(ch)) {
+                        nextOffset++;
+                    } else {
+                        break;
+                    }
+                }
+                int wordPos = nextOffset;
+                while (nextOffset < documentLength) {
+                    char ch = document.getChar(nextOffset);
+                    if (!isWordPart(ch)) {
+                        break;
+                    }
+                    nextOffset++;
+                }
+                if (nextOffset > wordPos) {
+                    nextWord = document.get(wordPos, nextOffset - wordPos);
+                }
+            }
         } catch (BadLocationException e) {
             // do nothing
         }
@@ -208,6 +238,10 @@ public class SQLWordPartDetector extends SQLIdentifierDetector
     public String getPrevKeyWord()
     {
         return prevKeyWord;
+    }
+
+    public String getNextWord() {
+        return nextWord;
     }
 
     public String[] splitWordPart()

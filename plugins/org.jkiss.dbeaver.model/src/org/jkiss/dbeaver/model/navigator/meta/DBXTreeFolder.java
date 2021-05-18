@@ -111,6 +111,11 @@ public class DBXTreeFolder extends DBXTreeNode {
         this.type = type;
     }
 
+    public String getIdOrType() {
+        String id = getId();
+        return !CommonUtils.isEmpty(id) ? id : type;
+    }
+
     @Override
     public String getNodeTypeLabel(@Nullable DBPDataSource dataSource, @Nullable String locale) {
         if (locale == null) {
@@ -161,6 +166,20 @@ public class DBXTreeFolder extends DBXTreeNode {
             return childrenWithContributions;
         }
         return children;
+    }
+
+    @Override
+    protected boolean isVisible(DBNNode context) {
+        if (!super.isVisible(context)) {
+            return false;
+        }
+        // If child nodes are only folders and all non visible then parent folder is also not visible
+        for (DBXTreeNode childNode : getChildren(context)) {
+            if (childNode.isVisible(context)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

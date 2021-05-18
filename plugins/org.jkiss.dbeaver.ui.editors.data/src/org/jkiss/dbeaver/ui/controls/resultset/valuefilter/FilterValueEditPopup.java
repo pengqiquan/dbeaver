@@ -18,39 +18,53 @@ package org.jkiss.dbeaver.ui.controls.resultset.valuefilter;
 
 import org.eclipse.jface.dialogs.IDialogSettings;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
-import org.eclipse.jface.viewers.TableViewerColumn;
+import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
 import org.jkiss.code.NotNull;
 import org.jkiss.dbeaver.model.DBPEvaluationContext;
+import org.jkiss.dbeaver.model.DBUtils;
 import org.jkiss.dbeaver.model.data.DBDAttributeBinding;
 import org.jkiss.dbeaver.model.data.DBDDisplayFormat;
 import org.jkiss.dbeaver.model.data.DBDLabelValuePair;
+import org.jkiss.dbeaver.model.data.DBDLabelValuePairExt;
 import org.jkiss.dbeaver.model.exec.DBCLogicalOperator;
+import org.jkiss.dbeaver.model.sql.SQLUtils;
 import org.jkiss.dbeaver.model.struct.DBSEntityAssociation;
 import org.jkiss.dbeaver.model.struct.DBSEntityReferrer;
 import org.jkiss.dbeaver.ui.UIUtils;
+import org.jkiss.dbeaver.ui.controls.ViewerColumnController;
 import org.jkiss.dbeaver.ui.controls.resultset.ResultSetRow;
 import org.jkiss.dbeaver.ui.controls.resultset.ResultSetUtils;
 import org.jkiss.dbeaver.ui.controls.resultset.ResultSetViewer;
 import org.jkiss.dbeaver.ui.controls.resultset.internal.ResultSetMessages;
 import org.jkiss.dbeaver.ui.dialogs.AbstractPopupPanel;
 import org.jkiss.dbeaver.ui.editors.object.struct.EditDictionaryPage;
+import org.jkiss.utils.ArrayUtils;
+import org.jkiss.utils.CommonUtils;
+
+import java.text.NumberFormat;
 
 public class FilterValueEditPopup extends AbstractPopupPanel {
 
     private static final String DIALOG_ID = "DBeaver.FilterValueEditMenu";//$NON-NLS-1$
 
+    private static final String PROP_SHOW_ROW_COUNT = "showRowCount";
+    private static final String PROP_QUERY_DATABASE = "queryDatabase";
+    private static final String PROP_CASE_INSENSITIVE_SEARCH = "caseInsensitiveSearch";
+
     private Object value;
     private GenericFilterValueEdit filter;
     private Point location;
+    private Button showRowCountCheck;
 
     public FilterValueEditPopup(Shell parentShell, @NotNull ResultSetViewer viewer, @NotNull DBDAttributeBinding attr, @NotNull ResultSetRow[] rows) {
-        super(parentShell, "Filter by '" + attr.getFullyQualifiedName(DBPEvaluationContext.UI) + "'");
+        super(parentShell, NLS.bind(ResultSetMessages.dialog_filter_value_edit_title, attr.getFullyQualifiedName(DBPEvaluationContext.UI)));
         setShellStyle(SWT.SHELL_TRIM);
         filter = new GenericFilterValueEdit(viewer, attr, rows, DBCLogicalOperator.IN);
     }
@@ -84,15 +98,33 @@ public class FilterValueEditPopup extends AbstractPopupPanel {
         {
             Composite labelComposite = UIUtils.createComposite(group, 2);
             labelComposite.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
-            Label controlLabel = UIUtils.createControlLabel(labelComposite, "Choose value(s) to filter by");
+            Label controlLabel = UIUtils.createControlLabel(labelComposite, ResultSetMessages.dialog_filter_value_edit_label_choose_values);
             controlLabel.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
+            if (isAttributeSupportsLike()) {
+                final Button caseInsensitiveSearchCheck = UIUtils.createCheckbox(
+                    labelComposite,
+                    ResultSetMessages.dialog_filter_value_edit_table_checkbox_case_insensitive_label,
+                    ResultSetMessages.dialog_filter_value_edit_table_checkbox_case_insensitive_description,
+                    isCaseInsensitiveSearchEnabled(),
+                    1
+                );
+                caseInsensitiveSearchCheck.addSelectionListener(new SelectionAdapter() {
+                    @Override
+                    public void widgetSelected(SelectionEvent e) {
+                        getDialogBoundsSettings().put(PROP_CASE_INSENSITIVE_SEARCH, caseInsensitiveSearchCheck.getSelection());
+                        reloadFilterValues();
+                    }
+                });
+                caseInsensitiveSearchCheck.setEnabled(isQueryDatabaseEnabled());
+                ((GridLayout) labelComposite.getLayout()).numColumns++;
+            }
             if (descReferrer instanceof DBSEntityAssociation) {
-                Link hintLabel = UIUtils.createLink(labelComposite, "(<a>Define Description</a>)", new SelectionAdapter() {
+                Link hintLabel = UIUtils.createLink(labelComposite, ResultSetMessages.dialog_filter_value_edit_label_define_description, new SelectionAdapter() {
                     @Override
                     public void widgetSelected(SelectionEvent e) {
                         EditDictionaryPage editDictionaryPage = new EditDictionaryPage(((DBSEntityAssociation) descReferrer).getAssociatedEntity());
                         if (editDictionaryPage.edit(parent.getShell())) {
-                            filter.loadValues(null);
+                            reloadFilterValues();
                         }
                     }
                 });
@@ -102,7 +134,7 @@ public class FilterValueEditPopup extends AbstractPopupPanel {
             }
         }
 
-        Text filterTextbox = filter.addFilterTextbox(group);
+        Text filterTextbox = filter.addFilterText(group);
         filterTextbox.setFocus();
         filterTextbox.addTraverseListener(e -> {
             Table table = filter.getTableViewer().getTable();
@@ -115,7 +147,7 @@ public class FilterValueEditPopup extends AbstractPopupPanel {
                 applyFilterValue();
             }
         });
-        UIUtils.addEmptyTextHint(filterTextbox, text -> "Type partial value to search");
+        UIUtils.addEmptyTextHint(filterTextbox, text -> ResultSetMessages.dialog_filter_value_edit_text_hint);
 
         Composite tableComposite = UIUtils.createComposite(group, 1);
         GridData gd = new GridData(GridData.FILL_BOTH);
@@ -128,29 +160,41 @@ public class FilterValueEditPopup extends AbstractPopupPanel {
             SWT.BORDER | SWT.SINGLE | SWT.FULL_SELECTION | SWT.V_SCROLL | SWT.H_SCROLL |
                 (filter.getOperator() == DBCLogicalOperator.IN ? SWT.CHECK : SWT.NONE),
             true,
-            descReferrer != null,
+            true,
             new GridData(GridData.FILL_BOTH));
 
         Table table = filter.getTableViewer().getTable();
 
-        TableViewerColumn resultsetColumn = new TableViewerColumn(filter.getTableViewer(), UIUtils.createTableColumn(table, SWT.NONE, "Value"));
-        resultsetColumn.setLabelProvider(new ColumnLabelProvider() {
+        ViewerColumnController<?, ?> columnController = new ViewerColumnController<>("sqlFilterValueEditPopup", filter.getTableViewer());
+        columnController.addColumn(ResultSetMessages.dialog_filter_value_edit_table_value_label, ResultSetMessages.dialog_filter_value_edit_table_value_description, SWT.LEFT, true, true, new ColumnLabelProvider() {
             @Override
             public String getText(Object element) {
                 return filter.getAttribute().getValueHandler().getValueDisplayString(filter.getAttribute(), ((DBDLabelValuePair) element).getValue(), DBDDisplayFormat.UI);
             }
         });
-
-        TableViewerColumn descColumn;
         if (descReferrer != null) {
-            descColumn = new TableViewerColumn(filter.getTableViewer(), UIUtils.createTableColumn(table, SWT.NONE, "Description"));
-            descColumn.setLabelProvider(new ColumnLabelProvider() {
+            columnController.addColumn(ResultSetMessages.dialog_filter_value_edit_table_description_label, ResultSetMessages.dialog_filter_value_edit_table_description_description, SWT.LEFT, true, true, new ColumnLabelProvider() {
                 @Override
                 public String getText(Object element) {
                     return ((DBDLabelValuePair) element).getLabel();
                 }
             });
         }
+        if (descReferrer == null) {
+            columnController.addColumn(ResultSetMessages.dialog_filter_value_edit_table_count_label, ResultSetMessages.dialog_filter_value_edit_table_count_description, SWT.LEFT, true, true, true, null, new ColumnLabelProvider() {
+                private final NumberFormat numberFormat = NumberFormat.getInstance();
+
+                @Override
+                public String getText(Object element) {
+                    if (element instanceof DBDLabelValuePairExt) {
+                        return numberFormat.format(((DBDLabelValuePairExt) element).getCount());
+                    } else {
+                        return CommonUtils.notEmpty(((DBDLabelValuePair) element).getLabel());
+                    }
+                }
+            }, null);
+        }
+        columnController.createColumns(true);
 
         filter.getTableViewer().addSelectionChangedListener(event -> {
             value = filter.getFilterValue();
@@ -158,9 +202,46 @@ public class FilterValueEditPopup extends AbstractPopupPanel {
         });
         filter.getTableViewer().addDoubleClickListener(event -> applyFilterValue());
 
-        filter.setFilterPattern(null);
-        filter.loadValues(() ->
-            UIUtils.asyncExec(() -> UIUtils.packColumns(table, false)));
+        Composite buttonsPanel = filter.getButtonsPanel();
+        {
+            Button queryDatabaseCheck = UIUtils.createCheckbox(
+                buttonsPanel,
+                ResultSetMessages.dialog_filter_value_edit_table_checkbox_read_from_server_label,
+                ResultSetMessages.dialog_filter_value_edit_table_checkbox_read_from_server_description,
+                isQueryDatabaseEnabled(),
+                1);
+            ((GridLayout) buttonsPanel.getLayout()).numColumns++;
+            queryDatabaseCheck.addSelectionListener(new SelectionAdapter() {
+                @Override
+                public void widgetSelected(SelectionEvent e) {
+                    boolean isEnabled = queryDatabaseCheck.getSelection();
+                    getDialogBoundsSettings().put(PROP_QUERY_DATABASE, isEnabled);
+                    if (showRowCountCheck != null) {
+                        showRowCountCheck.setEnabled(isEnabled);
+                    }
+                    reloadFilterValues();
+                }
+            });
+            closeOnFocusLost(queryDatabaseCheck);
+        }
+        if (!filter.isDictionarySelector()) {
+            showRowCountCheck = UIUtils.createCheckbox(
+                buttonsPanel,
+                ResultSetMessages.dialog_filter_value_edit_table_checkbox_show_row_count_label,
+                ResultSetMessages.dialog_filter_value_edit_table_checkbox_show_row_count_description,
+                isRowCountEnabled(),
+                1);
+            ((GridLayout) buttonsPanel.getLayout()).numColumns++;
+            showRowCountCheck.addSelectionListener(new SelectionAdapter() {
+                @Override
+                public void widgetSelected(SelectionEvent e) {
+                    getDialogBoundsSettings().put(PROP_SHOW_ROW_COUNT, showRowCountCheck.getSelection());
+                    reloadFilterValues();
+                }
+            });
+            showRowCountCheck.setEnabled(isQueryDatabaseEnabled());
+            closeOnFocusLost(showRowCountCheck);
+        }
 
         filter.createFilterButton(ResultSetMessages.sql_editor_resultset_filter_panel_btn_apply, new SelectionAdapter() {
             @Override
@@ -171,7 +252,41 @@ public class FilterValueEditPopup extends AbstractPopupPanel {
 
         closeOnFocusLost(filterTextbox, table);
 
+        filter.setFilterPattern(null);
+        reloadFilterValues();
+
         return tableComposite;
+    }
+
+    private boolean isRowCountEnabled() {
+        return getDialogBoundsSettings().getBoolean(PROP_SHOW_ROW_COUNT);
+    }
+
+    private boolean isQueryDatabaseEnabled() {
+        return CommonUtils.getBoolean(getDialogBoundsSettings().get(PROP_QUERY_DATABASE), true);
+    }
+
+    private boolean isCaseInsensitiveSearchEnabled() {
+        return CommonUtils.getBoolean(getDialogBoundsSettings().getBoolean(PROP_CASE_INSENSITIVE_SEARCH), true);
+    }
+
+    private boolean isAttributeSupportsLike() {
+        final DBDAttributeBinding attribute = filter.getAttribute();
+        return ArrayUtils.contains(DBUtils.getAttributeOperators(attribute), DBCLogicalOperator.LIKE)
+            && SQLUtils.getDialectFromObject(attribute).getCaseInsensitiveExpressionFormatter(DBCLogicalOperator.LIKE) != null;
+    }
+
+    private void reloadFilterValues() {
+        filter.setQueryDatabase(isQueryDatabaseEnabled());
+        filter.setShowRowCount(isRowCountEnabled());
+        filter.setCaseInsensitiveSearch(isCaseInsensitiveSearchEnabled());
+        filter.loadValues(() ->
+            UIUtils.asyncExec(() -> {
+                Table table = filter.getTableViewer().getTable();
+                if (table != null && !table.isDisposed()) {
+                    UIUtils.packColumns(table, false);
+                }
+            }));
     }
 
     private void applyFilterValue() {

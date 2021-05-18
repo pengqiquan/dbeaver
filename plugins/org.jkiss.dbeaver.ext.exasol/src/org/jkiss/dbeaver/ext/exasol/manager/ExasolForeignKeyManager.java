@@ -1,9 +1,11 @@
 package org.jkiss.dbeaver.ext.exasol.manager;
 
+import org.jkiss.code.NotNull;
 import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.ext.exasol.model.ExasolTable;
 import org.jkiss.dbeaver.ext.exasol.model.ExasolTableForeignKey;
 import org.jkiss.dbeaver.ext.exasol.tools.ExasolUtils;
+import org.jkiss.dbeaver.model.DBConstants;
 import org.jkiss.dbeaver.model.DBPEvaluationContext;
 import org.jkiss.dbeaver.model.DBUtils;
 import org.jkiss.dbeaver.model.edit.DBECommandContext;
@@ -89,7 +91,7 @@ public class ExasolForeignKeyManager
                                           ObjectChangeCommand command, Map<String, Object> options) {
         final ExasolTableForeignKey constraint = command.getObject();
 
-        if (command.getProperties().containsKey("enabled")) {
+        if (command.getProperties().containsKey(DBConstants.PROP_ID_ENABLED)) {
             actionList.add(
                 new SQLDatabasePersistAction("Alter FK",
                     "ALTER TABLE " + constraint.getTable().getFullyQualifiedName(DBPEvaluationContext.DDL) +
@@ -101,16 +103,16 @@ public class ExasolForeignKeyManager
     }
 
     @Override
-    protected void processObjectRename(DBECommandContext commandContext, ExasolTableForeignKey object, String newName) throws DBException {
-        ObjectRenameCommand command = new ObjectRenameCommand(object, ModelMessages.model_jdbc_rename_object, newName);
+    protected void processObjectRename(DBECommandContext commandContext, ExasolTableForeignKey object, Map<String, Object> options, String newName) throws DBException {
+        ObjectRenameCommand command = new ObjectRenameCommand(object, ModelMessages.model_jdbc_rename_object, options, newName);
         commandContext.addCommand(command, new RenameObjectReflector(), true);
     }
 
 
     @Override
-    public void renameObject(DBECommandContext commandContext,
-                             ExasolTableForeignKey object, String newName) throws DBException {
-        processObjectRename(commandContext, object, newName);
+    public void renameObject(@NotNull DBECommandContext commandContext,
+                             @NotNull ExasolTableForeignKey object, @NotNull Map<String, Object> options, @NotNull String newName) throws DBException {
+        processObjectRename(commandContext, object, options, newName);
     }
 
 }

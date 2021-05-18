@@ -20,12 +20,14 @@ package org.jkiss.dbeaver.ext.db2.model;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.DBException;
+import org.jkiss.dbeaver.Log;
 import org.jkiss.dbeaver.ext.db2.DB2Constants;
 import org.jkiss.dbeaver.ext.db2.editors.DB2ColumnDataTypeListProvider;
 import org.jkiss.dbeaver.ext.db2.model.dict.DB2ColumnHiddenState;
 import org.jkiss.dbeaver.ext.db2.model.dict.DB2TableColumnCompression;
 import org.jkiss.dbeaver.ext.db2.model.dict.DB2TableColumnGenerated;
 import org.jkiss.dbeaver.ext.db2.model.dict.DB2YesNo;
+import org.jkiss.dbeaver.model.DBConstants;
 import org.jkiss.dbeaver.model.DBPDataKind;
 import org.jkiss.dbeaver.model.DBPEvaluationContext;
 import org.jkiss.dbeaver.model.DBPHiddenObject;
@@ -33,6 +35,7 @@ import org.jkiss.dbeaver.model.impl.DBPositiveNumberTransformer;
 import org.jkiss.dbeaver.model.impl.jdbc.JDBCUtils;
 import org.jkiss.dbeaver.model.impl.jdbc.struct.JDBCTableColumn;
 import org.jkiss.dbeaver.model.meta.Property;
+import org.jkiss.dbeaver.model.meta.PropertyLength;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.struct.DBSDataType;
 import org.jkiss.dbeaver.model.struct.DBSTypedObjectEx;
@@ -41,6 +44,7 @@ import org.jkiss.dbeaver.model.struct.rdb.DBSTableColumn;
 import org.jkiss.utils.CommonUtils;
 
 import java.sql.ResultSet;
+import java.sql.Types;
 
 /**
  * DB2 Table Column
@@ -49,6 +53,8 @@ import java.sql.ResultSet;
  */
 public class DB2TableColumn extends JDBCTableColumn<DB2TableBase>
     implements DBSTableColumn, DBSTypedObjectEx, DBPHiddenObject, DBSTypedObjectExt4<DB2DataType> {
+
+    private static final Log log = Log.getLog(DB2TableColumn.class);
 
     private DB2DataType dataType;
     private DB2Schema dataTypeSchema;
@@ -159,8 +165,14 @@ public class DB2TableColumn extends JDBCTableColumn<DB2TableBase>
         } else {
             this.dataTypeSchema = dataType.getSchema();
         }
-        setTypeName(dataType.getFullyQualifiedName(DBPEvaluationContext.DML));
-        setValueType(dataType.getTypeID());
+        if (this.dataType == null) {
+            log.debug("Data type '" + typeName + "' wasn't resolved");
+            setTypeName(typeName);
+            setValueType(Types.OTHER);
+        } else {
+            setTypeName(dataType.getFullyQualifiedName(DBPEvaluationContext.DML));
+            setValueType(dataType.getTypeID());
+        }
     }
 
     public DB2TableColumn(DB2TableBase tableBase)
@@ -249,6 +261,7 @@ public class DB2TableColumn extends JDBCTableColumn<DB2TableBase>
 
     @Override
     public void setDataType(DB2DataType dataType) {
+        onChangeDataType(this.dataType, dataType);
         this.dataType = dataType;
         this.typeName = dataType.getTypeName();
     }
@@ -326,7 +339,7 @@ public class DB2TableColumn extends JDBCTableColumn<DB2TableBase>
 
     @Nullable
     @Override
-    @Property(viewable = true, order = 999, editable = true, updatable = true, multiline = true)
+    @Property(viewable = true, order = 999, editable = true, updatable = true, length = PropertyLength.MULTILINE)
     public String getDescription()
     {
         return remarks;
@@ -387,55 +400,55 @@ public class DB2TableColumn extends JDBCTableColumn<DB2TableBase>
         return transactionStartId;
     }
 
-    @Property(viewable = false, order = 150, category = DB2Constants.CAT_STATS)
+    @Property(viewable = false, order = 150, category = DBConstants.CAT_STATISTICS)
     public Long getColcard()
     {
         return colcard;
     }
 
-    @Property(viewable = false, order = 152, category = DB2Constants.CAT_STATS)
+    @Property(viewable = false, order = 152, category = DBConstants.CAT_STATISTICS)
     public Integer getAvgLength()
     {
         return avgLength;
     }
 
-    @Property(viewable = false, order = 153, category = DB2Constants.CAT_STATS)
+    @Property(viewable = false, order = 153, category = DBConstants.CAT_STATISTICS)
     public String getLow2key()
     {
         return low2key;
     }
 
-    @Property(viewable = false, order = 154, category = DB2Constants.CAT_STATS)
+    @Property(viewable = false, order = 154, category = DBConstants.CAT_STATISTICS)
     public String getHigh2key()
     {
         return high2key;
     }
 
-    @Property(viewable = false, order = 155, category = DB2Constants.CAT_STATS)
+    @Property(viewable = false, order = 155, category = DBConstants.CAT_STATISTICS)
     public Integer getPctInlined()
     {
         return pctInlined;
     }
 
-    @Property(viewable = false, order = 156, category = DB2Constants.CAT_STATS)
+    @Property(viewable = false, order = 156, category = DBConstants.CAT_STATISTICS)
     public Integer getPctEncoded()
     {
         return pctEncoded;
     }
 
-    @Property(viewable = false, order = 157, category = DB2Constants.CAT_STATS)
+    @Property(viewable = false, order = 157, category = DBConstants.CAT_STATISTICS)
     public Integer getNbQuantiles()
     {
         return nbQuantiles;
     }
 
-    @Property(viewable = false, order = 158, category = DB2Constants.CAT_STATS)
+    @Property(viewable = false, order = 158, category = DBConstants.CAT_STATISTICS)
     public Integer getNbMostFreq()
     {
         return nbMostFreq;
     }
 
-    @Property(viewable = false, order = 159, category = DB2Constants.CAT_STATS)
+    @Property(viewable = false, order = 159, category = DBConstants.CAT_STATISTICS)
     public Long getNbNulls()
     {
         return nbNulls;

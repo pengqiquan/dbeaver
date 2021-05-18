@@ -36,6 +36,7 @@ import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.sql.SQLConstants;
 import org.jkiss.dbeaver.model.sql.SQLDialect;
+import org.jkiss.dbeaver.model.sql.SQLExpressionFormatter;
 import org.jkiss.dbeaver.model.sql.SQLUtils;
 import org.jkiss.dbeaver.model.struct.*;
 import org.jkiss.dbeaver.model.virtual.DBVEntity;
@@ -58,8 +59,6 @@ public abstract class JDBCTable<DATASOURCE extends DBPDataSource, CONTAINER exte
     implements DBSDictionary, DBSDataManipulator, DBPSaveableObject
 {
     private static final Log log = Log.getLog(JDBCTable.class);
-
-    protected static final String CAT_STATISTICS = "Statistics";
 
     private static final String DEFAULT_TABLE_ALIAS = "x";
 
@@ -429,11 +428,14 @@ public abstract class JDBCTable<DATASOURCE extends DBPDataSource, CONTAINER exte
                 // Make query
                 StringBuilder query = new StringBuilder();
                 String tableName = DBUtils.getEntityScriptName(JDBCTable.this, options);
-                query.append("UPDATE ").append(tableName);
+                query.append(generateTableUpdateBegin(tableName));
                 if (tableAlias != null) {
                     query.append(' ').append(tableAlias);
                 }
-                query.append("\n\tSET "); //$NON-NLS-1$ //$NON-NLS-2$
+                String updateSet = generateTableUpdateSet();
+                if (!CommonUtils.isEmpty(updateSet)) {
+                    query.append("\n\t").append(generateTableUpdateSet()); //$NON-NLS-1$ //$NON-NLS-2$
+                }
 
                 boolean hasKey = false;
                 for (int i = 0; i < updateAttributes.length; i++) {
@@ -507,7 +509,7 @@ public abstract class JDBCTable<DATASOURCE extends DBPDataSource, CONTAINER exte
                 // Make query
                 StringBuilder query = new StringBuilder();
                 String tableName = DBUtils.getEntityScriptName(JDBCTable.this, options);
-                query.append("DELETE FROM ").append(tableName);
+                query.append(generateTableDeleteFrom(tableName));
                 if (tableAlias != null) {
                     query.append(' ').append(tableAlias);
                 }
@@ -562,6 +564,7 @@ public abstract class JDBCTable<DATASOURCE extends DBPDataSource, CONTAINER exte
      * @param preceedingKeys other constrain key values. May be null.
      * @param sortByValue sort results by eky value. If false then sort by description
      * @param sortAsc sort ascending/descending
+     * @param caseInsensitiveSearch use case-insensitive search for {@code keyPattern}
      * @param maxResults maximum enumeration values in result set     @return  @throws DBException
      */
     @NotNull
@@ -573,6 +576,7 @@ public abstract class JDBCTable<DATASOURCE extends DBPDataSource, CONTAINER exte
         List<DBDAttributeValue> preceedingKeys,
         boolean sortByValue,
         boolean sortAsc,
+        boolean caseInsensitiveSearch,
         int maxResults)
         throws DBException
     {
@@ -584,6 +588,7 @@ public abstract class JDBCTable<DATASOURCE extends DBPDataSource, CONTAINER exte
             preceedingKeys,
             sortByValue,
             sortAsc,
+            caseInsensitiveSearch,
             maxResults);
     }
 
@@ -650,7 +655,7 @@ public abstract class JDBCTable<DATASOURCE extends DBPDataSource, CONTAINER exte
                 dbStat.setLimit(0, keyValues.size());
                 if (dbStat.executeStatement()) {
                     try (DBCResultSet dbResult = dbStat.openResultSet()) {
-                        return DBVUtils.readDictionaryRows(session, keyColumn, keyValueHandler, dbResult, true);
+                        return DBVUtils.readDictionaryRows(session, keyColumn, keyValueHandler, dbResult, true, false);
                     }
                 } else {
                     return Collections.emptyList();
@@ -666,6 +671,7 @@ public abstract class JDBCTable<DATASOURCE extends DBPDataSource, CONTAINER exte
         List<DBDAttributeValue> preceedingKeys,
         boolean sortByValue,
         boolean sortAsc,
+        boolean caseInsensitiveSearch,
         int maxResults)
         throws DBException
     {
@@ -768,15 +774,23 @@ public abstract class JDBCTable<DATASOURCE extends DBPDataSource, CONTAINER exte
             }
         }
         if (keyPattern != null) {
+            final SQLDialect dialect = getDataSource().getSQLDialect();
+            final SQLExpressionFormatter caseInsensitiveFormatter = caseInsensitiveSearch
+                ? dialect.getCaseInsensitiveExpressionFormatter(DBCLogicalOperator.LIKE)
+                : null;
             if (hasCond) query.append(" AND (");
             if (searchInKeys) {
-                query.append(DBUtils.getQuotedIdentifier(keyColumn));
-                if (keyColumn.getDataKind() == DBPDataKind.NUMERIC) {
-                    query.append(" >= ?");
-                } else if (keyColumn.getDataKind() == DBPDataKind.STRING) {
-                    query.append(" LIKE ?");
+                final String identifier = DBUtils.getQuotedIdentifier(keyColumn);
+                if (keyColumn.getDataKind() == DBPDataKind.STRING) {
+                    if (caseInsensitiveSearch && caseInsensitiveFormatter != null) {
+                        query.append(caseInsensitiveFormatter.format(identifier, "?"));
+                    } else {
+                        query.append(identifier).append(" LIKE ?");
+                    }
+                } else if (keyColumn.getDataKind() == DBPDataKind.NUMERIC) {
+                    query.append(identifier).append(" >= ?");
                 } else {
-                    query.append(" = ?");
+                    query.append(identifier).append(" = ?");
                 }
             }
             // Add desc columns conditions
@@ -784,10 +798,15 @@ public abstract class JDBCTable<DATASOURCE extends DBPDataSource, CONTAINER exte
                 boolean hasCondition = searchInKeys;
                 for (DBSEntityAttribute descAttr : descAttributes) {
                     if (descAttr.getDataKind() == DBPDataKind.STRING) {
+                        final String identifier = DBUtils.getQuotedIdentifier(descAttr);
                         if (hasCondition) {
                             query.append(" OR ");
                         }
-                        query.append(DBUtils.getQuotedIdentifier(descAttr)).append(" LIKE ?");
+                        if (caseInsensitiveSearch && caseInsensitiveFormatter != null) {
+                            query.append(caseInsensitiveFormatter.format(identifier, "?"));
+                        } else {
+                            query.append(identifier).append(" LIKE ?");
+                        }
                         hasCondition = true;
                     }
                 }
@@ -834,7 +853,7 @@ public abstract class JDBCTable<DATASOURCE extends DBPDataSource, CONTAINER exte
                 dbStat.setLimit(0, maxResults);
                 if (dbStat.executeStatement()) {
                     try (DBCResultSet dbResult = dbStat.openResultSet()) {
-                        return DBVUtils.readDictionaryRows(session, keyColumn, keyValueHandler, dbResult, true);
+                        return DBVUtils.readDictionaryRows(session, keyColumn, keyValueHandler, dbResult, true, false);
                     }
                 } else {
                     return Collections.emptyList();
@@ -943,6 +962,18 @@ public abstract class JDBCTable<DATASOURCE extends DBPDataSource, CONTAINER exte
         catch (DBException e) {
             throw new DBCException("Can't cache table columns", e);
         }
+    }
+
+    public String generateTableUpdateBegin(String tableName) {
+        return "UPDATE " + tableName;
+    }
+
+    public String generateTableUpdateSet() {
+        return "SET ";
+    }
+
+    public String generateTableDeleteFrom(String tableName) {
+        return "DELETE FROM " + tableName;
     }
 
 }

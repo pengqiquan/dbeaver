@@ -72,12 +72,19 @@ public class UINavigatorMessages extends NLS {
     public static String actions_navigator_view_script_button;
     public static String actions_navigator_filter_objects;
     public static String actions_navigator_search_tip;
+    public static String actions_navigator_search_filter_connection_name;
+    public static String actions_navigator_search_filter_connection_description;
+    public static String actions_navigator_search_filter_container_name;
+    public static String actions_navigator_search_filter_container_description;
+    public static String actions_navigator_search_filter_object_name;
+    public static String actions_navigator_search_filter_object_description;
 
     public static String dialog_project_create_wizard_error_already_exists;
     public static String dialog_project_create_wizard_error_cannot_create;
     public static String dialog_project_create_wizard_error_cannot_create_message;
     public static String dialog_project_create_wizard_title;
     public static String dialog_project_goto_object_title;
+    public static String dialog_project_goto_object_checkbox_search_in_comments;
     
     public static String registry_entity_editor_descriptor_description;
     public static String registry_entity_editor_descriptor_name;
@@ -167,6 +174,11 @@ public class UINavigatorMessages extends NLS {
 
     public static String confirm_entity_delete_title;
     public static String confirm_entity_delete_message;
+    public static String confirm_deleting_dependent_objects_title;
+    public static String confirm_deleting_dependent_objects;
+    public static String confirm_deleting_dependent_one_object;
+    public static String search_dependencies_error_title;
+    public static String search_dependencies_error_message;
 
     public static String confirm_local_folder_delete_title;
     public static String confirm_local_folder_delete_message;
@@ -210,11 +222,12 @@ public class UINavigatorMessages extends NLS {
     public static String confirm_deleting_multiple_objects_title;
     public static String confirm_deleting_multiple_objects_message;
     public static String confirm_deleting_multiple_objects_table_group_name;
-    public static String confirm_deleting_multiple_objects_column_type;
     public static String confirm_deleting_multiple_objects_column_name;
     public static String confirm_deleting_multiple_objects_column_description;
-    public static String confirm_deleting_multiple_objects_cascade_checkbox;
-    public static String confirm_deleting_multiple_objects_cascade_checkbox_tooltip;
+    public static String confirm_deleting_delete_cascade_checkbox_label;
+    public static String confirm_deleting_delete_cascade_checkbox_tooltip;
+    public static String confirm_deleting_close_existing_connections_checkbox_label;
+    public static String confirm_deleting_close_existing_connections_checkbox_tooltip;
     public static String confirm_deleting_delete_contents_checkbox;
     public static String confirm_deleting_delete_contents_checkbox_tooltip;
     public static String confirm_deleting_project_location_label;

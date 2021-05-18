@@ -1601,8 +1601,8 @@ public class UIUtils {
         return job;
     }
 
-    @NotNull
-    public static IWorkbenchWindow getActiveWorkbenchWindow() {
+    @Nullable
+    public static IWorkbenchWindow findActiveWorkbenchWindow() {
         IWorkbench workbench = PlatformUI.getWorkbench();
         IWorkbenchWindow window = workbench.getActiveWorkbenchWindow();
         if (window != null) {
@@ -1612,7 +1612,16 @@ public class UIUtils {
         if (windows.length > 0) {
             return windows[0];
         }
-        throw new IllegalStateException("No workbench window");
+        return null;
+    }
+
+    @NotNull
+    public static IWorkbenchWindow getActiveWorkbenchWindow() {
+        IWorkbenchWindow workbenchWindow = findActiveWorkbenchWindow();
+        if (workbenchWindow == null) {
+            throw new IllegalStateException("No workbench window");
+        }
+        return workbenchWindow;
     }
 
     public static IWorkbenchWindow getParentWorkbenchWindow(Control control) {
@@ -2009,9 +2018,9 @@ public class UIUtils {
     }
 
     private static boolean isEmptyTextControl(Control control) {
-        return control instanceof Text ?
-            ((Text) control).getCharCount() == 0 :
-            control instanceof StyledText && ((StyledText) control).getCharCount() == 0;
+        return (control instanceof Text && ((Text) control).getCharCount() == 0) ||
+            (control instanceof StyledText && ((StyledText) control).getCharCount() == 0) ||
+            (control instanceof Combo && ((Combo) control).getText().isEmpty());
     }
 
     public static void expandAll(AbstractTreeViewer treeViewer) {

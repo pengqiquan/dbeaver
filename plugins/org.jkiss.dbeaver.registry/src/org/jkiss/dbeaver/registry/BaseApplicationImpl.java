@@ -63,6 +63,11 @@ public abstract class BaseApplicationImpl implements IApplication, DBPApplicatio
         return false;
     }
 
+    @Override
+    public boolean isExclusiveMode() {
+        return false;
+    }
+
     @NotNull
     @Override
     public DBASecureStorage getSecureStorage() {
@@ -78,6 +83,15 @@ public abstract class BaseApplicationImpl implements IApplication, DBPApplicatio
     @Override
     public String getInfoDetails() {
         return "N/A";
+    }
+
+    /**
+     * Returns last user activity time
+     * @return -1 by default
+     */
+    @Override
+    public long getLastUserActivityTime() {
+        return -1;
     }
 
     /////////////////////////////////////////

@@ -28,17 +28,21 @@ import org.jkiss.dbeaver.model.DBPDataSource;
 import org.jkiss.dbeaver.model.DBPDataSourceContainer;
 import org.jkiss.dbeaver.model.DBPKeywordType;
 import org.jkiss.dbeaver.model.data.DBDBinaryFormatter;
+import org.jkiss.dbeaver.model.exec.DBCLogicalOperator;
 import org.jkiss.dbeaver.model.exec.jdbc.JDBCDatabaseMetaData;
+import org.jkiss.dbeaver.model.exec.jdbc.JDBCSession;
 import org.jkiss.dbeaver.model.impl.jdbc.JDBCDataSource;
 import org.jkiss.dbeaver.model.impl.jdbc.JDBCSQLDialect;
 import org.jkiss.dbeaver.model.impl.sql.BasicSQLDialect;
 import org.jkiss.dbeaver.model.runtime.VoidProgressMonitor;
 import org.jkiss.dbeaver.model.sql.SQLDialect;
+import org.jkiss.dbeaver.model.sql.SQLExpressionFormatter;
 import org.jkiss.dbeaver.model.struct.DBSAttributeBase;
 import org.jkiss.dbeaver.model.struct.DBSTypedObject;
 import org.jkiss.dbeaver.model.text.parser.TPRule;
 import org.jkiss.dbeaver.model.text.parser.TPRuleProvider;
 import org.jkiss.utils.ArrayUtils;
+import org.jkiss.utils.CommonUtils;
 
 import java.sql.Types;
 import java.util.Arrays;
@@ -196,6 +200,7 @@ public class PostgreDialect extends JDBCSQLDialect implements TPRuleProvider {
         "REQUIRING",
         "RESPECT",
         "RESTORE",
+        "RULE",
 //            "RETURNED_CARDINALITY",
 //            "RETURNED_LENGTH",
 //            "RETURNED_OCTET_LENGTH",
@@ -673,8 +678,8 @@ public class PostgreDialect extends JDBCSQLDialect implements TPRuleProvider {
         super.addFunctions(Arrays.asList(functions));
     }
 
-    public void initDriverSettings(JDBCDataSource dataSource, JDBCDatabaseMetaData metaData) {
-        super.initDriverSettings(dataSource, metaData);
+    public void initDriverSettings(JDBCSession session, JDBCDataSource dataSource, JDBCDatabaseMetaData metaData) {
+        super.initDriverSettings(session, dataSource, metaData);
 
         addExtraKeywords(
             "SHOW",
@@ -768,7 +773,7 @@ public class PostgreDialect extends JDBCSQLDialect implements TPRuleProvider {
 
     @Override
     public int getCatalogUsage() {
-        return SQLDialect.USAGE_NONE;
+        return SQLDialect.USAGE_DML;
     }
 
     @Override
@@ -812,6 +817,11 @@ public class PostgreDialect extends JDBCSQLDialect implements TPRuleProvider {
             // For now we use workaround: represent objects as strings
             return '\'' + escapeString(strValue) + '\'';
         }
+        if (CommonUtils.isNaN(value) || CommonUtils.isInfinite(value)) {
+            // These special values should be quoted
+            // https://www.postgresql.org/docs/current/datatype-numeric.html#DATATYPE-NUMERIC-DECIMAL
+            return '\'' + String.valueOf(value) + '\'';
+        }
         return super.escapeScriptValue(attribute, value, strValue);
     }
 
@@ -839,6 +849,15 @@ public class PostgreDialect extends JDBCSQLDialect implements TPRuleProvider {
     @Override
     public boolean supportsNestedComments() {
         return true;
+    }
+
+    @Nullable
+    @Override
+    public SQLExpressionFormatter getCaseInsensitiveExpressionFormatter(@NotNull DBCLogicalOperator operator) {
+        if (operator == DBCLogicalOperator.LIKE) {
+            return (left, right) -> left + " ILIKE " + right;
+        }
+        return super.getCaseInsensitiveExpressionFormatter(operator);
     }
 
     @NotNull

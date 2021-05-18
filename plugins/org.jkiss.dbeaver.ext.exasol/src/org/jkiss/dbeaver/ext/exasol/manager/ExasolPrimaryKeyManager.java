@@ -17,10 +17,12 @@
  */
 package org.jkiss.dbeaver.ext.exasol.manager;
 
+import org.jkiss.code.NotNull;
 import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.ext.exasol.model.ExasolTable;
 import org.jkiss.dbeaver.ext.exasol.model.ExasolTableUniqueKey;
 import org.jkiss.dbeaver.ext.exasol.tools.ExasolUtils;
+import org.jkiss.dbeaver.model.DBConstants;
 import org.jkiss.dbeaver.model.DBPEvaluationContext;
 import org.jkiss.dbeaver.model.DBUtils;
 import org.jkiss.dbeaver.model.edit.DBECommandContext;
@@ -80,10 +82,10 @@ public class ExasolPrimaryKeyManager
 	}
 
 	@Override
-	public void renameObject(DBECommandContext commandContext,
-			ExasolTableUniqueKey object, String newName) throws DBException
+	public void renameObject(@NotNull DBECommandContext commandContext,
+							 @NotNull ExasolTableUniqueKey object, @NotNull Map<String, Object> options, @NotNull String newName) throws DBException
 	{
-		processObjectRename(commandContext, object, newName);
+		processObjectRename(commandContext, object, options, newName);
 		
 	}
 	
@@ -93,7 +95,7 @@ public class ExasolPrimaryKeyManager
 	{
 		final ExasolTableUniqueKey constraint = command.getObject();
 		
-		if (command.getProperties().containsKey("enabled"))
+		if (command.getProperties().containsKey(DBConstants.PROP_ID_ENABLED))
 		{
 			actionList.add(
 					new SQLDatabasePersistAction("Alter PK",

@@ -84,12 +84,12 @@ public class SQLServerConstants {
     public static final String TYPE_HIERARCHYID = "hierarchyid";
     public static final String TYPE_XML = "xml";
 
+    public static final int MAX_NUMERIC_PRECISION = 38;
     public static final int TABLE_TYPE_SYSTEM_ID = 243;
 
     public static final String PROP_AUTHENTICATION = DBConstants.INTERNAL_PROP_PREFIX + "authentication@";
     public static final String PROP_SHOW_ALL_SCHEMAS = DBConstants.INTERNAL_PROP_PREFIX + "show-all-schemas@";
 
-    public static final String PROP_CLOSE_EXISTING_CONNECTIONS = "closeExistingConnections";
     public static final String PROP_CONNECTION_INTEGRATED_SECURITY = "integratedSecurity";
     public static final String PROP_CONNECTION_AUTHENTICATION = "authentication";
     public static final String PROP_CONNECTION_AUTHENTICATION_SCHEME = "authenticationScheme";
@@ -100,6 +100,7 @@ public class SQLServerConstants {
     public static final String AUTH_ACTIVE_DIRECTORY_PASSWORD = "ActiveDirectoryPassword";
     public static final String AUTH_ACTIVE_DIRECTORY_INTEGRATED = "ActiveDirectoryIntegrated";
     public static final String AUTH_ACTIVE_DIRECTORY_MSI = "ActiveDirectoryMSI";
+    public static final String AUTH_ACTIVE_DIRECTORY_INTERACTIVE = "ActiveDirectoryInteractive";
     public static final String AUTH_NTLM = "NTLM";
 
     public static final String AUTH_SCHEME_KERBEROS = "JavaKerberos";

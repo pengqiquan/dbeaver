@@ -304,8 +304,8 @@ public class PostgreRole implements PostgreObject, PostgrePrivilegeOwner, DBPPer
     public String getObjectDefinitionText(DBRProgressMonitor monitor, Map<String, Object> options) throws DBException {
         final String lineBreak = System.getProperty(StandardConstants.ENV_LINE_SEPARATOR);
         StringBuilder ddl = new StringBuilder();
-        ddl.append("-- DROP ROLE ").append(getName()).append(";\n\n"); //$NON-NLS-1$ //$NON-NLS-2$
-        ddl.append("CREATE ROLE ").append(getName()).append(" WITH ");
+        ddl.append("-- DROP ROLE ").append(DBUtils.getQuotedIdentifier(this)).append(";\n\n"); //$NON-NLS-1$ //$NON-NLS-2$
+        ddl.append("CREATE ROLE ").append(DBUtils.getQuotedIdentifier(this)).append(" WITH ");
         addOptionToDDL(ddl, isSuperUser(), "SUPERUSER");
         addOptionToDDL(ddl, isCreateDatabase(), "CREATEDB");
         addOptionToDDL(ddl, isCreateRole(), "CREATEROLE");
@@ -336,8 +336,8 @@ public class PostgreRole implements PostgreObject, PostgrePrivilegeOwner, DBPPer
 
     @Override
     public List<PostgrePrivilege> getPrivileges(DBRProgressMonitor monitor, boolean includeNestedObjects) {
+        List<PostgrePrivilege> permissions = new ArrayList<>();
         try (JDBCSession session = DBUtils.openMetaSession(monitor, this, "Read role privileges")) {
-            List<PostgrePrivilege> permissions = new ArrayList<>();
             try (JDBCPreparedStatement dbStat = session.prepareStatement(
                     "SELECT * FROM information_schema.table_privileges WHERE table_catalog=? AND grantee=?")) {
                 dbStat.setString(1, getDatabase().getName());
@@ -425,12 +425,12 @@ public class PostgreRole implements PostgreObject, PostgrePrivilegeOwner, DBPPer
                         }
                     }
                 }
-            } catch (Throwable e) {
-                log.error("Error reading routine privileges", e);
             }
             Collections.sort(permissions);
-            return permissions;
+        } catch (Exception e) {
+            log.error("Error reading role privileges", e);
         }
+        return permissions;
     }
 
     @Override

@@ -23,14 +23,13 @@ import org.jkiss.dbeaver.Log;
 import org.jkiss.dbeaver.model.*;
 import org.jkiss.dbeaver.model.data.DBDLabelValuePair;
 import org.jkiss.dbeaver.model.data.DBDValueHandler;
-import org.jkiss.dbeaver.model.exec.DBCResultSet;
-import org.jkiss.dbeaver.model.exec.DBCSession;
-import org.jkiss.dbeaver.model.exec.DBCStatement;
-import org.jkiss.dbeaver.model.exec.DBCStatementType;
+import org.jkiss.dbeaver.model.exec.*;
 import org.jkiss.dbeaver.model.impl.DBDummyNumberTransformer;
 import org.jkiss.dbeaver.model.impl.DBObjectNameCaseTransformer;
 import org.jkiss.dbeaver.model.meta.IPropertyValueListProvider;
 import org.jkiss.dbeaver.model.meta.Property;
+import org.jkiss.dbeaver.model.sql.SQLDialect;
+import org.jkiss.dbeaver.model.sql.SQLExpressionFormatter;
 import org.jkiss.dbeaver.model.struct.*;
 import org.jkiss.dbeaver.model.struct.rdb.DBSTableColumn;
 import org.jkiss.dbeaver.model.virtual.DBVUtils;
@@ -177,10 +176,27 @@ public abstract class JDBCTableColumn<TABLE_TYPE extends DBSEntity> extends JDBC
 
     @NotNull
     @Override
-    public List<DBDLabelValuePair> getValueEnumeration(@NotNull DBCSession session, @Nullable Object valuePattern, int maxResults, boolean formatValues) throws DBException {
+    public List<DBDLabelValuePair> getValueEnumeration(
+        @NotNull DBCSession session,
+        @Nullable Object valuePattern,
+        int maxResults,
+        boolean calcCount,
+        boolean formatValues,
+        boolean caseInsensitiveSearch) throws DBException
+    {
+        final String identifier = DBUtils.getQuotedIdentifier(this);
         DBDValueHandler valueHandler = DBUtils.findValueHandler(session, this);
         StringBuilder query = new StringBuilder();
-        query.append("SELECT ").append(DBUtils.getQuotedIdentifier(this)).append(", count(*)");
+        query.append("SELECT ");
+        if (!calcCount) {
+            query.append("DISTINCT ");
+        }
+        query.append(identifier);
+        if (calcCount) {
+            query.append(", count(*)");
+        } else {
+            query.append(", NULL");
+        }
         // Do not use description columns because they duplicate distinct value
 //        String descColumns = DBVUtils.getDictionaryDescriptionColumns(session.getProgressMonitor(), this);
 //        if (descColumns != null) {
@@ -188,14 +204,28 @@ public abstract class JDBCTableColumn<TABLE_TYPE extends DBSEntity> extends JDBC
 //        }
         query.append("\nFROM ").append(DBUtils.getObjectFullName(getTable(), DBPEvaluationContext.DML));
         if (valuePattern instanceof String) {
-            query.append("\nWHERE ").append(DBUtils.getQuotedIdentifier(this));
+            query.append("\nWHERE ");
             if (getDataKind() == DBPDataKind.STRING) {
-                query.append(" LIKE ?");
+                final SQLDialect dialect = getDataSource().getSQLDialect();
+                final SQLExpressionFormatter caseInsensitiveFormatter = caseInsensitiveSearch
+                    ? dialect.getCaseInsensitiveExpressionFormatter(DBCLogicalOperator.LIKE)
+                    : null;
+                if (caseInsensitiveSearch && caseInsensitiveFormatter != null) {
+                    query.append(caseInsensitiveFormatter.format(identifier, "?"));
+                } else {
+                    query.append(identifier).append(" LIKE ?");
+                }
+
             } else {
-                query.append(" = ?");
+                query.append(identifier).append(" = ?");
             }
         }
-        query.append("\nGROUP BY ").append(DBUtils.getQuotedIdentifier(this));
+        if (calcCount) {
+            query.append("\nGROUP BY ").append(identifier);
+            query.append("\nORDER BY 2 DESC");
+        } else {
+            query.append("\nORDER BY 1");
+        }
 
         try (DBCStatement dbStat = session.prepareStatement(DBCStatementType.QUERY, query.toString(), false, false, false)) {
             if (valuePattern instanceof String) {
@@ -208,7 +238,7 @@ public abstract class JDBCTableColumn<TABLE_TYPE extends DBSEntity> extends JDBC
             dbStat.setLimit(0, maxResults);
             if (dbStat.executeStatement()) {
                 try (DBCResultSet dbResult = dbStat.openResultSet()) {
-                    return DBVUtils.readDictionaryRows(session, this, valueHandler, dbResult, formatValues);
+                    return DBVUtils.readDictionaryRows(session, this, valueHandler, dbResult, formatValues, calcCount);
                 }
             } else {
                 return Collections.emptyList();
@@ -216,7 +246,7 @@ public abstract class JDBCTableColumn<TABLE_TYPE extends DBSEntity> extends JDBC
         }
     }
 
-    public static class ColumnTypeNameListProvider implements IPropertyValueListProvider<JDBCTableColumn> {
+    public static class ColumnTypeNameListProvider implements IPropertyValueListProvider<JDBCTableColumn<?>> {
 
         @Override
         public boolean allowCustomValue()
@@ -225,7 +255,7 @@ public abstract class JDBCTableColumn<TABLE_TYPE extends DBSEntity> extends JDBC
         }
 
         @Override
-        public Object[] getPossibleValues(JDBCTableColumn column)
+        public Object[] getPossibleValues(JDBCTableColumn<?> column)
         {
             Set<String> typeNames = new TreeSet<>();
             if (column.getDataSource() instanceof DBPDataTypeProvider) {
@@ -235,7 +265,7 @@ public abstract class JDBCTableColumn<TABLE_TYPE extends DBSEntity> extends JDBC
                     }
                 }
             }
-            return typeNames.toArray(new String[typeNames.size()]);
+            return typeNames.toArray(new String[0]);
         }
     }
 

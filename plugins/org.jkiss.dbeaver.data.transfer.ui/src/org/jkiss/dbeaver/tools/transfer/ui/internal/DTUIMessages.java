@@ -42,6 +42,9 @@ public class DTUIMessages extends NLS {
 	public static String database_consumer_wizard_transfer_checkbox_tooltip;
 	public static String database_consumer_wizard_truncate_checkbox_label;
 	public static String database_consumer_wizard_truncate_checkbox_description;
+	public static String database_consumer_wizard_disable_referential_integrity_label;
+	public static String database_consumer_wizard_disable_referential_integrity_tip_no_caveats;
+	public static String database_consumer_wizard_disable_referential_integrity_tip_with_caveats;
 	public static String database_consumer_wizard_performance_group_label;
 	public static String database_consumer_wizard_transactions_checkbox_label;
 	public static String database_consumer_wizard_commit_spinner_label;
@@ -106,6 +109,11 @@ public class DTUIMessages extends NLS {
 	public static String stream_consumer_page_settings_description;
 	public static String stream_consumer_page_settings_item_text_none;
 	public static String stream_consumer_page_warning_not_enough_sources_chosen;
+	public static String stream_consumer_page_mapping_title;
+	public static String stream_consumer_page_mapping_button_configure;
+	public static String stream_consumer_page_mapping_name_column_name;
+	public static String stream_consumer_page_mapping_mapping_column_name;
+	public static String stream_consumer_page_mapping_label_error_no_columns_selected_text;
 
 	public static String data_transfer_task_configurator_group_label_export_tables;
 	public static String data_transfer_task_configurator_group_label_import_into;
@@ -165,6 +173,10 @@ public class DTUIMessages extends NLS {
 	public static String sql_script_task_page_settings_error_message_you_must_select_script_execute;
 	public static String sql_script_task_page_settings_error_message_you_must_select_connection;
 
+	public static String value_format_selector_value;
+	public static String value_format_selector_display;
+	public static String value_format_selector_editable;
+	public static String value_format_selector_database_native;
 
 	static {
 		// initialize resource bundle

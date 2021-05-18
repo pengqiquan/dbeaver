@@ -16,23 +16,20 @@
  */
 package org.jkiss.dbeaver.ext.mssql.edit;
 
+import org.jkiss.code.NotNull;
 import org.jkiss.dbeaver.DBException;
-import org.jkiss.dbeaver.ext.mssql.SQLServerConstants;
-import org.jkiss.dbeaver.ext.mssql.internal.SQLServerActivator;
 import org.jkiss.dbeaver.ext.mssql.model.SQLServerDataSource;
 import org.jkiss.dbeaver.ext.mssql.model.SQLServerDatabase;
 import org.jkiss.dbeaver.model.DBPDataSource;
 import org.jkiss.dbeaver.model.DBUtils;
-import org.jkiss.dbeaver.model.edit.DBECommandContext;
-import org.jkiss.dbeaver.model.edit.DBEObjectMaker;
-import org.jkiss.dbeaver.model.edit.DBEObjectRenamer;
-import org.jkiss.dbeaver.model.edit.DBEPersistAction;
+import org.jkiss.dbeaver.model.edit.*;
 import org.jkiss.dbeaver.model.exec.DBCExecutionContext;
 import org.jkiss.dbeaver.model.impl.edit.SQLDatabasePersistAction;
 import org.jkiss.dbeaver.model.impl.sql.edit.SQLObjectEditor;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 import org.jkiss.dbeaver.model.struct.cache.DBSObjectCache;
+import org.jkiss.utils.CommonUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -45,8 +42,8 @@ public class SQLServerDatabaseManager extends SQLObjectEditor<SQLServerDatabase,
     }
 
     @Override
-    public void renameObject(DBECommandContext commandContext, SQLServerDatabase object, String newName) throws DBException {
-        processObjectRename(commandContext, object, newName);
+    public void renameObject(@NotNull DBECommandContext commandContext, @NotNull SQLServerDatabase object, @NotNull Map<String, Object> options, @NotNull String newName) throws DBException {
+        processObjectRename(commandContext, object, options, newName);
     }
 
     @Override
@@ -64,7 +61,7 @@ public class SQLServerDatabaseManager extends SQLObjectEditor<SQLServerDatabase,
 
     @Override
     protected void addObjectDeleteActions(DBRProgressMonitor monitor, DBCExecutionContext executionContext, List<DBEPersistAction> actions, ObjectDeleteCommand command, Map<String, Object> options) {
-        if (SQLServerActivator.getDefault().getPreferences().getBoolean(SQLServerConstants.PROP_CLOSE_EXISTING_CONNECTIONS)) {
+        if (CommonUtils.getOption(options, DBEObjectManager.OPTION_CLOSE_EXISTING_CONNECTIONS)) {
             actions.add(new SQLDatabasePersistAction(
                 "Drop database connections",
                 "ALTER DATABASE " + DBUtils.getQuotedIdentifier(command.getObject()) + " SET SINGLE_USER WITH ROLLBACK IMMEDIATE;"
@@ -90,7 +87,7 @@ public class SQLServerDatabaseManager extends SQLObjectEditor<SQLServerDatabase,
 
     @Override
     public long getMakerOptions(DBPDataSource dataSource) {
-        return DBEObjectMaker.FEATURE_SAVE_IMMEDIATELY;
+        return DBEObjectMaker.FEATURE_SAVE_IMMEDIATELY | DBEObjectMaker.FEATURE_CLOSE_EXISTING_CONNECTIONS;
     }
 
     @Override

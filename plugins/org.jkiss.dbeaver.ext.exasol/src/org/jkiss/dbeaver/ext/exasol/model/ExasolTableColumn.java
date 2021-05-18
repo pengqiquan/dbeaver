@@ -31,6 +31,7 @@ import org.jkiss.dbeaver.model.impl.jdbc.JDBCUtils;
 import org.jkiss.dbeaver.model.impl.jdbc.struct.JDBCColumnKeyType;
 import org.jkiss.dbeaver.model.impl.jdbc.struct.JDBCTableColumn;
 import org.jkiss.dbeaver.model.meta.Property;
+import org.jkiss.dbeaver.model.meta.PropertyLength;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.runtime.VoidProgressMonitor;
 import org.jkiss.dbeaver.model.struct.DBSDataType;
@@ -145,6 +146,7 @@ public class ExasolTableColumn extends JDBCTableColumn<ExasolTableBase>
 
     @Override
     public void setDataType(ExasolDataType dataType) {
+        onChangeDataType(this.dataType, dataType);
         if (!this.dataType.getTypeName().equals(dataType.getTypeName()))
             this.changed = true;
         this.dataType = dataType;
@@ -230,7 +232,7 @@ public class ExasolTableColumn extends JDBCTableColumn<ExasolTableBase>
 
     @Nullable
     @Override
-    @Property(viewable = true, order = 999, editable = true, updatable = true, multiline = true)
+    @Property(viewable = true, order = 999, editable = true, updatable = true, length = PropertyLength.MULTILINE)
     public String getDescription() {
         return remarks;
     }

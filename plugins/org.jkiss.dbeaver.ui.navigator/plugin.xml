@@ -116,8 +116,8 @@
             class="org.jkiss.dbeaver.ui.actions.ObjectPropertyTester"
             id="org.jkiss.dbeaver.ui.actions.ObjectPropertyTester"
             namespace="org.jkiss.dbeaver.core.object"
-            properties="canOpen,canCreateSingle,canCreateMulti,canPaste,canDelete,canRename,canMoveUp,canMoveDown,canFilter,canFilterObject,hasFilter"
-            type="org.jkiss.dbeaver.model.navigator.DBNNode"/>
+            properties="canOpen,canCreateSingle,canCreateMulti,canPaste,canDelete,canRename,canMoveUp,canMoveDown,canFilter,canFilterObject,hasFilter,supportsIndexCreate,supportsConstraintCreate"
+            type="org.jkiss.dbeaver.model.DBPNamedObject"/>
 
         <propertyTester
             class="org.jkiss.dbeaver.ui.navigator.ResourcePropertyTester"
@@ -273,6 +273,9 @@
         <command id="org.jkiss.dbeaver.ui.tools.select.schema" name="%command.org.jkiss.dbeaver.ui.tools.select.schema.name" description="%command.org.jkiss.dbeaver.ui.tools.select.schema.description" categoryId="org.jkiss.dbeaver.core.database">
             <commandParameter id="noCustomLabel" name="Show original command name" optional="true"/>
         </command>
+
+        <command id="org.jkiss.dbeaver.navigator.create.column.index" name="%command.org.jkiss.dbeaver.navigator.create.column.index.name" description="%command.org.jkiss.dbeaver.navigator.create.column.index.description" categoryId="org.jkiss.dbeaver.core.database" />
+        <command id="org.jkiss.dbeaver.navigator.create.column.constraint" name="%command.org.jkiss.dbeaver.navigator.create.column.constraint.name" description="%command.org.jkiss.dbeaver.navigator.create.column.constraint.description" categoryId="org.jkiss.dbeaver.core.database" />
     </extension>
 
     <extension point="org.eclipse.ui.commandImages">
@@ -302,6 +305,9 @@
 
         <image commandId="org.jkiss.dbeaver.ui.tools.select.connection" icon="platform:/plugin/org.jkiss.dbeaver.model/icons/tree/database.png"/>
         <image commandId="org.jkiss.dbeaver.ui.tools.select.schema" icon="platform:/plugin/org.jkiss.dbeaver.model/icons/tree/schema.png"/>
+
+        <image commandId="org.jkiss.dbeaver.navigator.create.column.index" icon="platform:/plugin/org.jkiss.dbeaver.model/icons/tree/index.png"/>
+        <image commandId="org.jkiss.dbeaver.navigator.create.column.constraint" icon="platform:/plugin/org.jkiss.dbeaver.model/icons/tree/constraint.png"/>
     </extension>
 
     <extension point="org.eclipse.ui.handlers">
@@ -312,27 +318,37 @@
                 <with variable="selection">
                     <count value="+"/>
                     <iterate operator="and">
-                        <instanceof value="org.jkiss.dbeaver.model.navigator.DBNNode"/>
+                        <adapt type="org.jkiss.dbeaver.model.navigator.DBNNode"/>
                     </iterate>
                 </with>
             </enabledWhen>
         </handler>
 
-        <handler commandId="org.jkiss.dbeaver.core.object.create" class="org.jkiss.dbeaver.ui.navigator.actions.NavigatorHandlerObjectCreateNew">
-<!--
-            <activeWhen><reference definitionId="org.jkiss.dbeaver.core.ui.navigator.part"/></activeWhen>
+        <handler commandId="org.jkiss.dbeaver.core.object.create" class="org.jkiss.dbeaver.ui.navigator.actions.NavigatorHandlerObjectCreateNew"/>
+
+        <handler commandId="org.jkiss.dbeaver.navigator.create.column.index" class="org.jkiss.dbeaver.ui.navigator.actions.NavigatorHandlerCreateColumnIndex">
             <enabledWhen>
                 <with variable="selection">
-                    <count value="1"/>
+                    <count value="+"/>
                     <iterate operator="and">
-                        <and>
-                            <instanceof value="org.jkiss.dbeaver.model.navigator.DBNNode"/>
-                            <test property="org.jkiss.dbeaver.core.object.canCreate"/>
-                        </and>
+                        <adapt type="org.jkiss.dbeaver.model.navigator.DBNNode">
+                            <test property="org.jkiss.dbeaver.core.object.supportsIndexCreate" />
+                        </adapt>
                     </iterate>
                 </with>
             </enabledWhen>
--->
+        </handler>
+        <handler commandId="org.jkiss.dbeaver.navigator.create.column.constraint" class="org.jkiss.dbeaver.ui.navigator.actions.NavigatorHandlerCreateColumnConstraint">
+            <enabledWhen>
+                <with variable="selection">
+                    <count value="+"/>
+                    <iterate operator="and">
+                        <adapt type="org.jkiss.dbeaver.model.navigator.DBNNode">
+                            <test property="org.jkiss.dbeaver.core.object.supportsConstraintCreate" />
+                        </adapt>
+                    </iterate>
+                </with>
+            </enabledWhen>
         </handler>
 
         <handler commandId="org.jkiss.dbeaver.navigator.filter.connected" class="org.jkiss.dbeaver.ui.navigator.actions.NavigatorHandlerConnectionFilter">
@@ -344,10 +360,9 @@
                 <with variable="selection">
                     <count value="1"/>
                     <iterate operator="and">
-                        <and>
-                            <instanceof value="org.jkiss.dbeaver.model.navigator.DBNNode"/>
+                        <adapt type="org.jkiss.dbeaver.model.navigator.DBNNode">
                             <test property="org.jkiss.dbeaver.core.object.canFilter"/>
-                        </and>
+                        </adapt>
                     </iterate>
                 </with>
             </enabledWhen>
@@ -357,10 +372,9 @@
                 <with variable="selection">
                     <count value="1"/>
                     <iterate operator="and">
-                        <and>
-                            <instanceof value="org.jkiss.dbeaver.model.navigator.DBNNode"/>
+                        <adapt type="org.jkiss.dbeaver.model.navigator.DBNNode">
                             <test property="org.jkiss.dbeaver.core.object.hasFilter"/>
-                        </and>
+                        </adapt>
                     </iterate>
                 </with>
             </enabledWhen>
@@ -370,10 +384,9 @@
                 <with variable="selection">
                     <count value="1"/>
                     <iterate operator="and">
-                        <and>
-                            <instanceof value="org.jkiss.dbeaver.model.navigator.DBNNode"/>
+                        <adapt type="org.jkiss.dbeaver.model.navigator.DBNNode">
                             <test property="org.jkiss.dbeaver.core.object.hasFilter" value="defined"/>
-                        </and>
+                        </adapt>
                     </iterate>
                 </with>
             </enabledWhen>
@@ -382,10 +395,9 @@
             <enabledWhen>
                 <with variable="selection">
                     <iterate operator="and">
-                        <and>
-                            <instanceof value="org.jkiss.dbeaver.model.navigator.DBNNode"/>
+                        <adapt type="org.jkiss.dbeaver.model.navigator.DBNNode">
                             <test property="org.jkiss.dbeaver.core.object.canFilterObject"/>
-                        </and>
+                        </adapt>
                     </iterate>
                 </with>
             </enabledWhen>
@@ -394,10 +406,9 @@
             <enabledWhen>
                 <with variable="selection">
                     <iterate operator="and">
-                        <and>
-                            <instanceof value="org.jkiss.dbeaver.model.navigator.DBNNode"/>
+                        <adapt type="org.jkiss.dbeaver.model.navigator.DBNNode">
                             <test property="org.jkiss.dbeaver.core.object.canFilterObject"/>
-                        </and>
+                        </adapt>
                     </iterate>
                 </with>
             </enabledWhen>
@@ -409,10 +420,9 @@
                 <with variable="selection">
                     <count value="+"/>
                     <iterate operator="and">
-                        <and>
-                            <instanceof value="org.jkiss.dbeaver.model.navigator.DBNNode"/>
+                        <adapt type="org.jkiss.dbeaver.model.navigator.DBNNode">
                             <test property="org.jkiss.dbeaver.core.object.canPaste"/>
-                        </and>
+                        </adapt>
                     </iterate>
                 </with>
             </enabledWhen>
@@ -424,10 +434,9 @@
                 <with variable="selection">
                     <count value="+"/>
                     <iterate operator="and">
-                        <and>
-                            <instanceof value="org.jkiss.dbeaver.model.navigator.DBNNode"/>
+                        <adapt type="org.jkiss.dbeaver.model.navigator.DBNNode">
                             <test property="org.jkiss.dbeaver.core.object.canDelete"/>
-                        </and>
+                        </adapt>
                     </iterate>
                 </with>
             </enabledWhen>
@@ -439,10 +448,9 @@
                 <with variable="selection">
                     <count value="+"/>
                     <iterate operator="and">
-                        <and>
-                            <instanceof value="org.jkiss.dbeaver.model.navigator.DBNNode"/>
+                        <adapt type="org.jkiss.dbeaver.model.navigator.DBNNode">
                             <test property="org.jkiss.dbeaver.core.object.canDelete"/>
-                        </and>
+                        </adapt>
                     </iterate>
                 </with>
             </enabledWhen>
@@ -454,10 +462,9 @@
                 <with variable="selection">
                     <count value="1"/>
                     <iterate operator="and">
-                        <and>
-                            <instanceof value="org.jkiss.dbeaver.model.navigator.DBNNode"/>
+                        <adapt type="org.jkiss.dbeaver.model.navigator.DBNNode">
                             <test property="org.jkiss.dbeaver.core.object.canRename"/>
-                        </and>
+                        </adapt>
                     </iterate>
                 </with>
             </enabledWhen>
@@ -466,12 +473,11 @@
             <activeWhen><reference definitionId="org.jkiss.dbeaver.core.ui.navigator.part"/></activeWhen>
             <enabledWhen>
                 <with variable="selection">
-                    <count value="1"/>
+                    <count value="+"/>
                     <iterate operator="and">
-                        <and>
-                            <instanceof value="org.jkiss.dbeaver.model.navigator.DBNNode"/>
+                        <adapt type="org.jkiss.dbeaver.model.navigator.DBNNode">
                             <test property="org.jkiss.dbeaver.core.object.canMoveUp"/>
-                        </and>
+                        </adapt>
                     </iterate>
                 </with>
             </enabledWhen>
@@ -480,12 +486,11 @@
             <activeWhen><reference definitionId="org.jkiss.dbeaver.core.ui.navigator.part"/></activeWhen>
             <enabledWhen>
                 <with variable="selection">
-                    <count value="1"/>
+                    <count value="+"/>
                     <iterate operator="and">
-                        <and>
-                            <instanceof value="org.jkiss.dbeaver.model.navigator.DBNNode"/>
+                        <adapt type="org.jkiss.dbeaver.model.navigator.DBNNode">
                             <test property="org.jkiss.dbeaver.core.object.canMoveDown"/>
-                        </and>
+                        </adapt>
                     </iterate>
                 </with>
             </enabledWhen>
@@ -810,6 +815,12 @@
                 </visibleWhen>
                 <dynamic id="org.jkiss.dbeaver.core.menu.create" class="org.jkiss.dbeaver.ui.navigator.actions.NavigatorHandlerObjectCreateNew$MenuCreateContributor"/>
             </menu>
+            <command commandId="org.jkiss.dbeaver.navigator.create.column.index">
+                <visibleWhen checkEnabled="true"/>
+            </command>
+            <command commandId="org.jkiss.dbeaver.navigator.create.column.constraint">
+                <visibleWhen checkEnabled="true"/>
+            </command>
         </menuContribution>
 
     </extension>

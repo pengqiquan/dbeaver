@@ -20,9 +20,11 @@ import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.ext.mysql.MySQLConstants;
 import org.jkiss.dbeaver.model.exec.jdbc.JDBCDatabaseMetaData;
+import org.jkiss.dbeaver.model.exec.jdbc.JDBCSession;
 import org.jkiss.dbeaver.model.impl.jdbc.JDBCDataSource;
 import org.jkiss.dbeaver.model.impl.jdbc.JDBCSQLDialect;
 import org.jkiss.dbeaver.model.impl.sql.BasicSQLDialect;
+import org.jkiss.dbeaver.model.sql.SQLConstants;
 import org.jkiss.dbeaver.model.sql.SQLDialect;
 import org.jkiss.dbeaver.model.struct.DBSAttributeBase;
 import org.jkiss.utils.ArrayUtils;
@@ -40,7 +42,7 @@ class MySQLDialect extends JDBCSQLDialect {
         new String[]{
             "USE", "SHOW",
             "CREATE", "ALTER", "DROP",
-            "EXPLAIN", "DESCRIBE", "DESC" }
+            SQLConstants.KEYWORD_EXPLAIN, "DESCRIBE", "DESC" }
     );
 
     private static final String[] ADVANCED_KEYWORDS = {
@@ -113,13 +115,13 @@ class MySQLDialect extends JDBCSQLDialect {
         super("MySQL", "mysql");
     }
 
-    public void initDriverSettings(JDBCDataSource dataSource, JDBCDatabaseMetaData metaData) {
-        super.initDriverSettings(dataSource, metaData);
+    public void initDriverSettings(JDBCSession session, JDBCDataSource dataSource, JDBCDatabaseMetaData metaData) {
+        super.initDriverSettings(session, dataSource, metaData);
         this.lowerCaseTableNames = ((MySQLDataSource)dataSource).getLowerCaseTableNames();
         this.setSupportsUnquotedMixedCase(lowerCaseTableNames != 2);
 
         //addSQLKeyword("STATISTICS");
-        Collections.addAll(tableQueryWords, "EXPLAIN", "DESCRIBE", "DESC");
+        Collections.addAll(tableQueryWords, SQLConstants.KEYWORD_EXPLAIN, "DESCRIBE", "DESC");
         addFunctions(Arrays.asList("SLEEP"));
 
         for (String kw : ADVANCED_KEYWORDS) {
@@ -173,7 +175,7 @@ class MySQLDialect extends JDBCSQLDialect {
     @NotNull
     @Override
     public String escapeString(String string) {
-        return string.replace("'", "''").replace("\\^[_%?]", "\\\\");
+        return string.replace("'", "''").replaceAll("\\\\(?![_%?])", "\\\\\\\\");
     }
 
     @NotNull

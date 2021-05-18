@@ -291,7 +291,8 @@ public class ResultSetViewer extends Viewer
         try {
             this.findReplaceTarget = new DynamicFindReplaceTarget();
 
-            this.viewerSash = UIUtils.createPartDivider(site.getPart(), this.viewerPanel, SWT.HORIZONTAL | SWT.SMOOTH);
+            this.viewerSash = new SashForm(this.viewerPanel, SWT.HORIZONTAL | SWT.SMOOTH);
+            this.viewerSash.setSashWidth(5);
             this.viewerSash.setLayoutData(new GridData(GridData.FILL_BOTH));
 
             this.presentationPanel = UIUtils.createPlaceholder(this.viewerSash, 1);
@@ -2448,7 +2449,6 @@ public class ResultSetViewer extends Viewer
                 if (row != null) {
                     manager.add(ActionUtils.makeCommandContribution(site, IWorkbenchCommandConstants.EDIT_PASTE));
                     manager.add(ActionUtils.makeCommandContribution(site, IActionConstants.CMD_PASTE_SPECIAL));
-                    manager.add(ActionUtils.makeCommandContribution(site, IWorkbenchCommandConstants.EDIT_CUT));
                 }
 
                 manager.add(new Separator());
@@ -2482,15 +2482,26 @@ public class ResultSetViewer extends Viewer
                     manager.add(navigateMenu);
                 }
 
+                final MenuManager editMenu = new MenuManager(
+                    ResultSetMessages.controls_resultset_viewer_action_edit,
+                    DBeaverIcons.getImageDescriptor(UIIcon.ROW_EDIT),
+                    MENU_ID_EDIT
+                );
+
                 if (row != null) {
-//                    MenuManager editMenu = new MenuManager(
-//                        IDEWorkbenchMessages.Workbench_edit,
-//                        DBeaverIcons.getImageDescriptor(UIIcon.ROW_EDIT),
-//                        MENU_ID_EDIT); //$NON-NLS-1$
-                    manager.add(new Separator());
-                    fillEditMenu(manager, attr, row, valueController);
-                    //manager.add(editMenu);
+                    fillEditMenu(editMenu, attr, row, valueController);
                 }
+
+                {
+                    editMenu.add(new Separator());
+                    editMenu.add(ActionUtils.makeCommandContribution(site, ResultSetHandlerMain.CMD_ROW_ADD));
+                    editMenu.add(ActionUtils.makeCommandContribution(site, ResultSetHandlerMain.CMD_ROW_COPY));
+                    editMenu.add(ActionUtils.makeCommandContribution(site, ResultSetHandlerMain.CMD_ROW_DELETE));
+                }
+
+                manager.add(new Separator());
+                manager.add(editMenu);
+                manager.add(new Separator());
             }
         }
         manager.add(new GroupMarker(MENU_GROUP_EDIT));
@@ -2572,7 +2583,7 @@ public class ResultSetViewer extends Viewer
         }
         viewMenu.add(new TransformComplexTypesToggleAction());
         if (attr.getDataKind() == DBPDataKind.BINARY || attr.getDataKind() == DBPDataKind.CONTENT) {
-            MenuManager binaryFormatMenu = new MenuManager("Binary format");
+            MenuManager binaryFormatMenu = new MenuManager(ResultSetMessages.controls_resultset_viewer_action_binary_format);
             binaryFormatMenu.setRemoveAllWhenShown(true);
             binaryFormatMenu.addMenuListener(manager12 -> fillBinaryFormatMenu(manager12, attr));
             viewMenu.add(binaryFormatMenu);
@@ -2639,6 +2650,8 @@ public class ResultSetViewer extends Viewer
 
             // Edit items
             if (!valueController.isReadOnly()) {
+                editMenu.add(ActionUtils.makeCommandContribution(site, ResultSetHandlerMain.CMD_ROW_EDIT));
+                editMenu.add(ActionUtils.makeCommandContribution(site, ResultSetHandlerMain.CMD_ROW_EDIT_INLINE));
                 if (!DBUtils.isNullValue(value) && attr != null && !attr.isRequired()) {
                     editMenu.add(ActionUtils.makeCommandContribution(site, ResultSetHandlerMain.CMD_CELL_SET_NULL));
                 }
@@ -2659,8 +2672,6 @@ public class ResultSetViewer extends Viewer
             } catch (Exception e) {
                 log.error(e);
             }
-
-            editMenu.add(new Separator());
         }
     }
 
@@ -2670,6 +2681,7 @@ public class ResultSetViewer extends Viewer
         }
         if ((getDecorator().getDecoratorFeatures() & IResultSetDecorator.FEATURE_PANELS) != 0) {
             layoutMenu.add(ActionUtils.makeCommandContribution(site, ResultSetHandlerMain.CMD_TOGGLE_PANELS));
+            layoutMenu.add(ActionUtils.makeCommandContribution(site, ResultSetHandlerMain.CMD_ACTIVATE_PANELS));
             layoutMenu.add(ActionUtils.makeCommandContribution(site, ResultSetHandlerMain.CMD_TOGGLE_LAYOUT));
         }
         if ((getDecorator().getDecoratorFeatures() & IResultSetDecorator.FEATURE_PRESENTATIONS) != 0) {
@@ -3524,13 +3536,11 @@ public class ResultSetViewer extends Viewer
                 }
                 for (DBDAttributeBinding attr : newAttributes) {
                     if (attr instanceof DBDAttributeBindingCustom) {
-                        try {
-                            attr.lateBinding(session, rows);
-                        } catch (DBException e) {
-                            log.debug("Error binding virtual attribute '" + attr.getName() + "'", e);
-                        }
+                        attr.lateBinding(session, rows);
                     }
                 }
+            } catch (Exception e) {
+                log.error("Error binding custom attributes", e);
             }
         }
         model.updateMetaData(newAttributes);
@@ -3938,16 +3948,6 @@ public class ResultSetViewer extends Viewer
     @NotNull
     public ResultSetRow addNewRow(final boolean copyCurrent, boolean afterCurrent, boolean updatePresentation)
     {
-        List<ResultSetRow> selectedRows = new ArrayList<>(getSelection().getSelectedRows());
-        int rowNum = curRow == null ? 0 : curRow.getVisualNumber();
-        int initRowCount = model.getRowCount();
-        if (rowNum >= initRowCount) {
-            rowNum = initRowCount - 1;
-        }
-        if (rowNum < 0) {
-            rowNum = 0;
-        }
-
         final DBCExecutionContext executionContext = getExecutionContext();
         if (executionContext == null) {
             throw new IllegalStateException("Can't add/copy rows in disconnected results");
@@ -3960,80 +3960,111 @@ public class ResultSetViewer extends Viewer
             final DBDAttributeBinding docAttribute = model.getDocumentAttribute();
             final DBDAttributeBinding[] attributes = model.getAttributes();
 
-            int rowsToCopy[];
-            if (selectedRows.size() > 1) {
-                rowsToCopy = new int[selectedRows.size()];
-                for (int i = 0; i < selectedRows.size(); i++) {
-                    rowsToCopy[i] = selectedRows.get(i).getVisualNumber();
-                }
-                rowNum = rowsToCopy[0];
-            } else {
-                rowsToCopy = new int[]{rowNum};
-            }
-            int newRowIndex = afterCurrent ? rowNum + rowsToCopy.length : rowNum;
-            if (newRowIndex > initRowCount) {
-                newRowIndex = initRowCount; // May happen if we insert "after" current row and there are no rows at all
-            }
-            for (int rowIndex = rowsToCopy.length - 1, rowCount = 0; rowIndex >= 0; rowIndex--, rowCount++) {
-                int currentRowNumber = rowsToCopy[rowIndex];
-                if (!afterCurrent) {
-                    currentRowNumber += rowCount;
-                }
-                final Object[] cells;
+            final List<ResultSetRow> selectedRows = getSelection().getSelectedRows();
+            final int[][] partitionedSelectedRows;
 
-                if (docAttribute != null) {
-                    cells = new Object[1];
-                    if (copyCurrent && currentRowNumber >= 0 && currentRowNumber < model.getRowCount()) {
-                        Object[] origRow = model.getRowData(currentRowNumber);
-                        try {
-                            cells[0] = docAttribute.getValueHandler().getValueFromObject(session, docAttribute, origRow[0], true, false);
-                        } catch (DBCException e) {
-                            log.warn(e);
-                        }
-                    }
-                    if (cells[0] == null) {
-                        try {
-                            cells[0] = DBUtils.makeNullValue(session, docAttribute.getValueHandler(), docAttribute.getAttribute());
-                        } catch (DBCException e) {
-                            log.warn(e);
-                        }
-                    }
-                } else {
-                    cells = new Object[attributes.length];
-                    if (copyCurrent && currentRowNumber >= 0 && currentRowNumber < model.getRowCount()) {
-                        Object[] origRow = model.getRowData(currentRowNumber);
-                        for (int i = 0; i < attributes.length; i++) {
-                            DBDAttributeBinding metaAttr = attributes[i];
-                            if (metaAttr.isPseudoAttribute() || metaAttr.isAutoGenerated()) {
-                                // set pseudo and autoincrement attributes to null
-                                cells[i] = null;
-                            } else {
-                                DBSAttributeBase attribute = metaAttr.getAttribute();
-                                try {
-                                    cells[i] = metaAttr.getValueHandler().getValueFromObject(session, attribute, origRow[i], true, false);
-                                } catch (DBCException e) {
-                                    log.warn(e);
-                                    try {
-                                        cells[i] = DBUtils.makeNullValue(session, metaAttr.getValueHandler(), attribute);
-                                    } catch (DBCException e1) {
-                                        log.warn(e1);
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        // Initialize new values
-                        for (int i = 0; i < attributes.length; i++) {
-                            DBDAttributeBinding metaAttr = attributes[i];
+            if (selectedRows.isEmpty()) {
+                // No rows selected, use zero as the only row number
+                partitionedSelectedRows = new int[][]{new int[]{0, 0}};
+            } else {
+                partitionedSelectedRows = groupConsecutiveRows(
+                    selectedRows.stream()
+                        .mapToInt(ResultSetRow::getVisualNumber)
+                        .toArray()
+                );
+            }
+
+            int partitionOffset = 0;
+
+            for (final int[] partitionRange : partitionedSelectedRows) {
+                final int partitionStart = partitionRange[0];
+                final int partitionEnd = partitionRange[1];
+                final int partitionLength = partitionEnd - partitionStart + 1;
+
+                int srcRowIndex = partitionOffset + partitionStart;
+                int newRowIndex = partitionOffset + partitionStart;
+
+                if (afterCurrent) {
+                    // If we insert to the end of current partition then we need to account its length
+                    newRowIndex += partitionLength;
+                }
+
+                if (newRowIndex > model.getRowCount()) {
+                    // May happen if we insert "after" current row and there are no rows at all
+                    newRowIndex = model.getRowCount();
+                }
+
+                for (int partitionIndex = partitionStart; partitionIndex <= partitionEnd; partitionIndex++) {
+                    final Object[] cells;
+
+                    if (docAttribute != null) {
+                        cells = new Object[1];
+
+                        if (copyCurrent && srcRowIndex >= 0 && srcRowIndex < model.getRowCount()) {
+                            final Object[] origRow = model.getRowData(srcRowIndex);
+
                             try {
-                                cells[i] = DBUtils.makeNullValue(session, metaAttr.getValueHandler(), metaAttr.getAttribute());
+                                cells[0] = docAttribute.getValueHandler().getValueFromObject(session, docAttribute, origRow[0], true, false);
                             } catch (DBCException e) {
                                 log.warn(e);
                             }
                         }
+                        if (cells[0] == null) {
+                            try {
+                                cells[0] = DBUtils.makeNullValue(session, docAttribute.getValueHandler(), docAttribute.getAttribute());
+                            } catch (DBCException e) {
+                                log.warn(e);
+                            }
+                        }
+                    } else {
+                        cells = new Object[attributes.length];
+
+                        if (copyCurrent && srcRowIndex >= 0 && srcRowIndex < model.getRowCount()) {
+                            final Object[] origRow = model.getRowData(srcRowIndex);
+
+                            for (int index = 0; index < attributes.length; index++) {
+                                final DBDAttributeBinding metaAttr = attributes[index];
+
+                                // Skip pseudo and autoincrement attributes
+                                if (!metaAttr.isPseudoAttribute() && !metaAttr.isAutoGenerated()) {
+                                    final DBSAttributeBase attribute = metaAttr.getAttribute();
+                                    try {
+                                        cells[index] = metaAttr.getValueHandler().getValueFromObject(session, attribute, origRow[index], true, false);
+                                    } catch (DBCException e) {
+                                        log.warn(e);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Fill leftover cells with null values, if needed
+                        for (int index = 0; index < attributes.length; index++) {
+                            final DBDAttributeBinding metaAttr = attributes[index];
+
+                            // Skip non-null, pseudo and autoincrement attributes
+                            if (cells[index] == null && !metaAttr.isPseudoAttribute() && !metaAttr.isAutoGenerated()) {
+                                final DBSAttributeBase attribute = metaAttr.getAttribute();
+                                try {
+                                    cells[index] = DBUtils.makeNullValue(session, metaAttr.getValueHandler(), attribute);
+                                } catch (DBCException e1) {
+                                    log.warn(e1);
+                                }
+                            }
+                        }
+                    }
+
+                    curRow = model.addNewRow(newRowIndex, cells);
+
+                    newRowIndex++;
+                    srcRowIndex++;
+
+                    if (!afterCurrent) {
+                        // Need to account currently inserted row
+                        srcRowIndex++;
                     }
                 }
-                curRow = model.addNewRow(newRowIndex, cells);
+
+                partitionOffset += partitionLength;
             }
         }
         if (updatePresentation) {
@@ -4044,6 +4075,32 @@ public class ResultSetViewer extends Viewer
         activePresentation.scrollToRow(IResultSetPresentation.RowPosition.CURRENT);
 
         return curRow;
+    }
+
+    /**
+     * Performs grouping of a continuous indexes.
+     *
+     * <h3>Example</h3>
+     *
+     * <pre>
+     * {1} &rArr; {[1..1)}
+     * {1, 2, 3, 4, 5, 6, 7} &rArr; {[1..7)}
+     * {1, 2, 4, 6, 7, 8, 9} &rArr; {[1..2), [4..4), [6..9)}
+     * </pre>
+     *
+     * @param indexes the indexes to group
+     * @return grouped indexes
+     */
+    @NotNull
+    private static int[][] groupConsecutiveRows(@NotNull int[] indexes) {
+        final List<int[]> ranges = new ArrayList<>();
+        for (int index = 1, start = 0, length = indexes.length; index <= length; index++) {
+            if (index == length || indexes[index - 1] != indexes[index] - 1) {
+                ranges.add(new int[]{indexes[start], indexes[index - 1]});
+                start = index;
+            }
+        }
+        return ranges.toArray(new int[0][]);
     }
 
     public void deleteSelectedRows()
@@ -4076,8 +4133,6 @@ public class ResultSetViewer extends Viewer
         } else {
             activePresentation.scrollToRow(IResultSetPresentation.RowPosition.CURRENT);
         }
-
-        updateEditControls();
     }
 
     //////////////////////////////////
@@ -4339,12 +4394,12 @@ public class ResultSetViewer extends Viewer
         strValue = strValue.replaceAll("\\s+", " ").replace("@", "^").trim();
         strValue = UITextUtils.getShortText(sizingGC, strValue, 150);
         if (operator.getArgumentCount() == 0) {
-            return operator.getStringValue();
+            return operator.getExpression();
         } else {
             if (!CUSTOM_FILTER_VALUE_STRING.equals(strValue)) {
                 strValue = "'" + strValue + "'";
             }
-            return operator.getStringValue() + " " + strValue;
+            return operator.getExpression() + " " + strValue;
         }
     }
 

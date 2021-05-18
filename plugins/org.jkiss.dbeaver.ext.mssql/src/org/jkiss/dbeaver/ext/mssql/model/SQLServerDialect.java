@@ -22,6 +22,7 @@ import org.jkiss.dbeaver.ext.mssql.SQLServerUtils;
 import org.jkiss.dbeaver.model.DBPDataKind;
 import org.jkiss.dbeaver.model.DBPDataSource;
 import org.jkiss.dbeaver.model.exec.jdbc.JDBCDatabaseMetaData;
+import org.jkiss.dbeaver.model.exec.jdbc.JDBCSession;
 import org.jkiss.dbeaver.model.impl.jdbc.JDBCDataSource;
 import org.jkiss.dbeaver.model.impl.jdbc.JDBCSQLDialect;
 import org.jkiss.dbeaver.model.sql.SQLConstants;
@@ -47,6 +48,7 @@ public class SQLServerDialect extends JDBCSQLDialect {
     private static String[] SQLSERVER_EXTRA_KEYWORDS = new String[]{
         "TOP",
         "SYNONYM",
+        "PERSISTED"
     };
 
     private static final String[][] SQLSERVER_QUOTE_STRINGS = {
@@ -95,8 +97,8 @@ public class SQLServerDialect extends JDBCSQLDialect {
         super("SQLServer", "sqlserver");
     }
 
-    public void initDriverSettings(JDBCDataSource dataSource, JDBCDatabaseMetaData metaData) {
-        super.initDriverSettings(dataSource, metaData);
+    public void initDriverSettings(JDBCSession session, JDBCDataSource dataSource, JDBCDatabaseMetaData metaData) {
+        super.initDriverSettings(session, dataSource, metaData);
         super.addSQLKeywords(Arrays.asList(SQLSERVER_EXTRA_KEYWORDS));
         this.dataSource = dataSource;
         this.isSqlServer = SQLServerUtils.isDriverSqlServer(dataSource.getContainer().getDriver());
@@ -106,8 +108,8 @@ public class SQLServerDialect extends JDBCSQLDialect {
 
     @NotNull
     @Override
-    public String getScriptDelimiter() {
-        return "GO";
+    public String[] getScriptDelimiters() {
+        return new String[]{";", "GO"};
     }
 
     @Override
@@ -183,7 +185,7 @@ public class SQLServerDialect extends JDBCSQLDialect {
     }
 
     @Override
-    public String getColumnTypeModifiers(DBPDataSource dataSource, @NotNull DBSTypedObject column, @NotNull String typeName, @NotNull DBPDataKind dataKind) {
+    public String getColumnTypeModifiers(@NotNull DBPDataSource dataSource, @NotNull DBSTypedObject column, @NotNull String typeName, @NotNull DBPDataKind dataKind) {
         if (dataKind == DBPDataKind.DATETIME) {
             if (SQLServerConstants.TYPE_DATETIME2.equalsIgnoreCase(typeName) ||
                     SQLServerConstants.TYPE_TIME.equalsIgnoreCase(typeName) ||
@@ -218,6 +220,20 @@ public class SQLServerDialect extends JDBCSQLDialect {
             }
         } else if (ArrayUtils.contains(PLAIN_TYPE_NAMES , typeName)) {
             return null;
+        } else if (dataKind == DBPDataKind.NUMERIC &&
+                (SQLServerConstants.TYPE_NUMERIC.equals(typeName) || SQLServerConstants.TYPE_DECIMAL.equals(typeName))) {
+            // numeric and decimal - are synonyms in sql server
+            // The numeric precision has a range from 1 to 38. The default precision is 38.
+            // The scale has a range from 0 to p (precision). The scale can be specified only if the precision is specified. By default, the scale is zero
+            Integer precision = column.getPrecision();
+            if (precision < 1 || precision > SQLServerConstants.MAX_NUMERIC_PRECISION) {
+                precision = SQLServerConstants.MAX_NUMERIC_PRECISION;
+            }
+            Integer scale = column.getScale();
+            if (scale > precision) {
+                scale = precision;
+            }
+            return "(" + precision + "," + scale + ")";
         }
 
         return super.getColumnTypeModifiers(dataSource, column, typeName, dataKind);
@@ -246,5 +262,38 @@ public class SQLServerDialect extends JDBCSQLDialect {
         }
         sql.append("\nSELECT\t'Return Value' = @return_value\n\n");
         sql.append("GO\n\n");
+    }
+
+    @Override
+    public boolean isQuotedString(String string) {
+        if (string.length() >= 3 && string.charAt(0) == 'N') {
+            // https://docs.microsoft.com/en-us/sql/t-sql/data-types/nchar-and-nvarchar-transact-sql
+            return super.isQuotedString(string.substring(1));
+        }
+        return super.isQuotedString(string);
+    }
+
+    @Override
+    public String getQuotedString(String string) {
+        return 'N' + super.getQuotedString(string);
+    }
+
+    @Override
+    public String getUnquotedString(String string) {
+        if (string.length() >= 3 && string.charAt(0) == 'N') {
+            // https://docs.microsoft.com/en-us/sql/t-sql/data-types/nchar-and-nvarchar-transact-sql
+            return super.getUnquotedString(string.substring(1));
+        }
+        return super.getUnquotedString(string);
+    }
+
+    @Override
+    public String[] getSingleLineComments() {
+        if (!isSqlServer) {
+            // Sybase supports double dash and double slash as single line comment indicators (and "%" - but not recommend to use it in documentation)
+            return new String[]{SQLConstants.SL_COMMENT, "//"};
+        } else {
+            return super.getSingleLineComments();
+        }
     }
 }

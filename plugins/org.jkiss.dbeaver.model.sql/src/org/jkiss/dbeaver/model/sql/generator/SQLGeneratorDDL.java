@@ -21,6 +21,8 @@ import org.jkiss.dbeaver.model.DBPScriptObject;
 import org.jkiss.dbeaver.model.DBPScriptObjectExt;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.sql.SQLConstants;
+import org.jkiss.dbeaver.model.sql.SQLDialect;
+import org.jkiss.dbeaver.model.sql.SQLUtils;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 import org.jkiss.dbeaver.model.struct.DBStructUtils;
 import org.jkiss.dbeaver.model.struct.rdb.DBSTable;
@@ -80,20 +82,24 @@ public class SQLGeneratorDDL extends SQLGenerator<DBPScriptObject> {
         sql.append(definitionText);
         String delimiter = SQLConstants.DEFAULT_STATEMENT_DELIMITER;
         if (object instanceof DBSObject) {
-            delimiter = ((DBSObject) object).getDataSource().getSQLDialect().getScriptDelimiter();
+            SQLDialect sqlDialect = ((DBSObject) object).getDataSource().getSQLDialect();
+            delimiter =  SQLUtils.getDefaultScriptDelimiter(sqlDialect);
         }
         if (!definitionText.endsWith(delimiter)) {
             sql.append(SQLConstants.DEFAULT_STATEMENT_DELIMITER);
         }
         sql.append("\n");
         if (object instanceof DBPScriptObjectExt) {
-            String definition2 = CommonUtils.notEmpty(((DBPScriptObjectExt) object).getExtendedDefinitionText(monitor)).trim();
-            sql.append("\n");
-            sql.append(definition2);
-            if (!definition2.endsWith(SQLConstants.DEFAULT_STATEMENT_DELIMITER)) {
-                sql.append(SQLConstants.DEFAULT_STATEMENT_DELIMITER);
+            String extendedDefinitionText = ((DBPScriptObjectExt) object).getExtendedDefinitionText(monitor);
+            if (CommonUtils.isNotEmpty(extendedDefinitionText)) {
+                String definition2 = extendedDefinitionText.trim();
+                sql.append("\n");
+                sql.append(definition2);
+                if (!definition2.endsWith(SQLConstants.DEFAULT_STATEMENT_DELIMITER)) {
+                    sql.append(SQLConstants.DEFAULT_STATEMENT_DELIMITER);
+                }
+                sql.append("\n");
             }
-            sql.append("\n");
         }
     }
 

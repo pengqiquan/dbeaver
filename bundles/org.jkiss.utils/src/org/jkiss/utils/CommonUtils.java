@@ -476,6 +476,16 @@ public class CommonUtils {
         }
     }
 
+    public static boolean isNaN(@Nullable Object value) {
+        return (value instanceof Float && ((Float) value).isNaN())
+            || (value instanceof Double && ((Double) value).isNaN());
+    }
+
+    public static boolean isInfinite(@Nullable Object value) {
+        return (value instanceof Float && ((Float) value).isInfinite())
+            || (value instanceof Double && ((Double) value).isInfinite());
+    }
+
     @NotNull
     public static String toHexString(@Nullable byte[] bytes) {
         return bytes == null ? "" : toHexString(bytes, 0, bytes.length);
@@ -743,7 +753,7 @@ public class CommonUtils {
         return String.format("%1$"+length+ "s", string);
     }
 
-    public static boolean startsWithIgnoreCase(@NotNull String str, @NotNull String startPart) {
+    public static boolean startsWithIgnoreCase(@Nullable String str, @Nullable String startPart) {
         if (isEmpty(str) || isEmpty(startPart)) {
             return false;
         }
@@ -864,5 +874,11 @@ public class CommonUtils {
         if (ch >= 'A' && ch <= 'Z')
             return radix > ch - 'A' + 10;
         return false;
+    }
+
+    @NotNull
+    @SafeVarargs
+    public static <T> Set<T> unmodifiableSet(@NotNull T... vararg) {
+        return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(vararg)));
     }
 }

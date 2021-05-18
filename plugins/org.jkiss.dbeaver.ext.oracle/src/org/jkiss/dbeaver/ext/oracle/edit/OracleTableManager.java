@@ -31,6 +31,7 @@ import org.jkiss.dbeaver.model.impl.edit.SQLDatabasePersistAction;
 import org.jkiss.dbeaver.model.impl.sql.edit.struct.SQLTableManager;
 import org.jkiss.dbeaver.model.messages.ModelMessages;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
+import org.jkiss.dbeaver.model.runtime.VoidProgressMonitor;
 import org.jkiss.dbeaver.model.sql.SQLUtils;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 import org.jkiss.dbeaver.model.struct.cache.DBSObjectCache;
@@ -92,7 +93,7 @@ public class OracleTableManager extends SQLTableManager<OracleTable, OracleSchem
         // Column comments
         for (OracleTableColumn column : CommonUtils.safeCollection(table.getAttributes(monitor))) {
             if (!CommonUtils.isEmpty(column.getDescription())) {
-                OracleTableColumnManager.addColumnCommentAction(actions, column);
+                OracleTableColumnManager.addColumnCommentAction(new VoidProgressMonitor(), actions, column);
             }
         }
     }
@@ -146,9 +147,9 @@ public class OracleTableManager extends SQLTableManager<OracleTable, OracleSchem
     }
 
     @Override
-    public void renameObject(DBECommandContext commandContext, OracleTable object, String newName) throws DBException
+    public void renameObject(@NotNull DBECommandContext commandContext, @NotNull OracleTable object, @NotNull Map<String, Object> options, @NotNull String newName) throws DBException
     {
-        processObjectRename(commandContext, object, newName);
+        processObjectRename(commandContext, object, options, newName);
     }
 
 }

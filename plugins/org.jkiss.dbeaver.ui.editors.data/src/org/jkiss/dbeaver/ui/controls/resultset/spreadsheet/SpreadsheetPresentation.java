@@ -128,8 +128,6 @@ public class SpreadsheetPresentation extends AbstractPresentation implements IRe
 
     private final Map<SpreadsheetValueController, IValueEditorStandalone> openEditors = new HashMap<>();
 
-    private SpreadsheetFindReplaceTarget findReplaceTarget;
-
     // UI modifiers
     private Color backgroundAdded;
     private Color backgroundDeleted;
@@ -144,6 +142,7 @@ public class SpreadsheetPresentation extends AbstractPresentation implements IRe
     private Font italicFont;
 
     private boolean showOddRows = true;
+    private boolean highlightRowsWithSelectedCells;
     //private boolean showCelIcons = true;
     private boolean showAttrOrdering;
     private boolean supportsAttributeFilter;
@@ -163,11 +162,6 @@ public class SpreadsheetPresentation extends AbstractPresentation implements IRe
     private int highlightScopeLastLine;
     private Color highlightScopeColor;
     private boolean useNativeNumbersFormat;
-
-    public SpreadsheetPresentation() {
-        findReplaceTarget = new SpreadsheetFindReplaceTarget(this);
-
-    }
 
     public Spreadsheet getSpreadsheet() {
         return spreadsheet;
@@ -334,7 +328,6 @@ public class SpreadsheetPresentation extends AbstractPresentation implements IRe
             spreadsheet.getHorizontalScrollBarProxy().setSelection(hScrollPos);
 
             // Update controls
-            controller.updateEditControls();
             controller.updateStatusMessage();
             controller.updatePanelsContent(false);
 
@@ -818,6 +811,7 @@ public class SpreadsheetPresentation extends AbstractPresentation implements IRe
         // Cache preferences
         DBPPreferenceStore preferenceStore = getPreferenceStore();
         showOddRows = preferenceStore.getBoolean(ResultSetPreferences.RESULT_SET_SHOW_ODD_ROWS);
+        highlightRowsWithSelectedCells = preferenceStore.getBoolean(ResultSetPreferences.RESULT_SET_HIGHLIGHT_SELECTED_ROWS);
         //showCelIcons = preferenceStore.getBoolean(ResultSetPreferences.RESULT_SET_SHOW_CELL_ICONS);
         rightJustifyNumbers = preferenceStore.getBoolean(ResultSetPreferences.RESULT_SET_RIGHT_JUSTIFY_NUMBERS);
         rightJustifyDateTime = preferenceStore.getBoolean(ResultSetPreferences.RESULT_SET_RIGHT_JUSTIFY_DATETIME);
@@ -1054,7 +1048,7 @@ public class SpreadsheetPresentation extends AbstractPresentation implements IRe
                 }
             }
         } else {
-            if (isShowAsCheckbox(attr)) {
+            if (isShowAsCheckbox(attr) && getPreferenceStore().getBoolean(ResultSetPreferences.RESULT_SET_CLICK_TOGGLE_BOOLEAN)) {
                 // No inline boolean editor. Single click changes value
                 return null;
             }
@@ -1170,6 +1164,9 @@ public class SpreadsheetPresentation extends AbstractPresentation implements IRe
 
         Object value = controller.getModel().getCellValue(attr, row);
         if (isShowAsCheckbox(attr)) {
+            if (!getPreferenceStore().getBoolean(ResultSetPreferences.RESULT_SET_CLICK_TOGGLE_BOOLEAN)) {
+                return;
+            }
             if (!DBExecUtils.isAttributeReadOnly(attr)) {
                 // Switch boolean value
                 toggleBooleanValue(attr, row, value);
@@ -1365,7 +1362,7 @@ public class SpreadsheetPresentation extends AbstractPresentation implements IRe
             });
             return adapter.cast(page);
         } else if (adapter == IFindReplaceTarget.class) {
-            return adapter.cast(findReplaceTarget);
+            return adapter.cast(SpreadsheetFindReplaceTarget.getInstance().owned(this));
         }
         return null;
     }
@@ -1637,7 +1634,6 @@ public class SpreadsheetPresentation extends AbstractPresentation implements IRe
     }
 
     private class ContentProvider implements IGridContentProvider {
-
         @NotNull
         @Override
         public Object[] getElements(boolean horizontal) {
@@ -1962,22 +1958,30 @@ public class SpreadsheetPresentation extends AbstractPresentation implements IRe
 
         @Nullable
         @Override
-        public Color getCellBackground(Object colElement, Object rowElement, boolean selected)
-        {
-            if (selected) {
-                Color normalColor = getCellBackground(colElement, rowElement, false);
+        public Color getCellBackground(Object colElement, Object rowElement, boolean selected) {
+            return getCellBackground(colElement, rowElement, selected, false);
+        }
+
+        private Color getCellBackground(Object colElement, Object rowElement, boolean cellSelected, boolean ignoreRowSelection) {
+            if (cellSelected) {
+                Color normalColor = getCellBackground(colElement, rowElement, false, true);
                 if (normalColor == null || normalColor == backgroundNormal) {
                     return backgroundSelected;
                 }
                 RGB mixRGB = UIUtils.blend(
                     normalColor.getRGB(),
                     backgroundSelected.getRGB(),
-                    50);
+                    50
+                );
                 return UIUtils.getSharedTextColors().getColor(mixRGB);
             }
             boolean recordMode = controller.isRecordMode();
             ResultSetRow row = (ResultSetRow) (!recordMode ?  rowElement : colElement);
             DBDAttributeBinding attribute = (DBDAttributeBinding)(!recordMode ?  colElement : rowElement);
+
+            final SpreadsheetFindReplaceTarget findReplaceTarget = SpreadsheetFindReplaceTarget
+                .getInstance()
+                .owned(SpreadsheetPresentation.this);
 
             if (findReplaceTarget.isSessionActive()) {
                 boolean hasScope = highlightScopeFirstLine >= 0 && highlightScopeLastLine >= 0;
@@ -1985,7 +1989,7 @@ public class SpreadsheetPresentation extends AbstractPresentation implements IRe
                 if (!hasScope || inScope) {
                     java.util.regex.Pattern searchPattern = findReplaceTarget.getSearchPattern();
                     if (searchPattern != null) {
-                        String cellText = getCellText(colElement, rowElement);
+                        String cellText = CommonUtils.toString(getCellValue(colElement, rowElement, false, false));
                         if (searchPattern.matcher(cellText).find()) {
                             return backgroundMatched;
                         }
@@ -1994,6 +1998,27 @@ public class SpreadsheetPresentation extends AbstractPresentation implements IRe
                 if (!recordMode && inScope) {
                     return highlightScopeColor != null ? highlightScopeColor : backgroundSelected;
                 }
+            }
+
+            if (!ignoreRowSelection && highlightRowsWithSelectedCells && spreadsheet.isRowSelected(row.getVisualNumber())) {
+                Color normalColor = getCellBackground(colElement, rowElement, false, true);
+                Color selectedCellColor;
+                if (normalColor == null || normalColor == backgroundNormal) {
+                    selectedCellColor = backgroundSelected;
+                } else {
+                    RGB mixRGB = UIUtils.blend(
+                        normalColor.getRGB(),
+                        backgroundSelected.getRGB(),
+                        50
+                    );
+                    selectedCellColor = UIUtils.getSharedTextColors().getColor(mixRGB);
+                }
+                RGB mixRGB = UIUtils.blend(
+                    selectedCellColor.getRGB(),
+                    normalColor.getRGB(),
+                    40
+                );
+                return UIUtils.getSharedTextColors().getColor(mixRGB);
             }
 
             switch (row.getState()) {

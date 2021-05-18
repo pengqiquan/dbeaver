@@ -92,9 +92,32 @@ public class NavigatorUtils {
             Object selectedObject = ((IStructuredSelection)selection).getFirstElement();
             if (selectedObject instanceof DBNNode) {
                 return (DBNNode) selectedObject;
+            } else {
+                return RuntimeUtils.getObjectAdapter(selectedObject, DBNNode.class);
             }
         }
         return null;
+    }
+
+    @NotNull
+    public static List<DBNNode> getSelectedNodes(@NotNull ISelection selection) {
+        if (selection.isEmpty()) {
+            return Collections.emptyList();
+        }
+        final List<DBNNode> nodes = new ArrayList<>();
+        if (selection instanceof IStructuredSelection) {
+            for (Object selectedObject : (IStructuredSelection) selection) {
+                if (selectedObject instanceof DBNNode) {
+                    nodes.add((DBNNode) selectedObject);
+                } else {
+                    DBNNode node = RuntimeUtils.getObjectAdapter(selectedObject, DBNNode.class);
+                    if (node != null) {
+                        nodes.add(node);
+                    }
+                }
+            }
+        }
+        return Collections.unmodifiableList(nodes);
     }
 
     /**

@@ -74,7 +74,8 @@ public class SQLServerMetaModel extends GenericMetaModel implements DBCQueryTran
     }
 
     private boolean isSapIQ(GenericDataSource dataSource) {
-        return dataSource.getInfo().getDatabaseProductName().contains("IQ SAP");
+        String productName = dataSource.getInfo().getDatabaseProductName();
+        return productName != null && (productName.contains("IQ SAP") || productName.contains("SAP IQ") || productName.contains("Sybase IQ"));
     }
 
     @Override
@@ -83,12 +84,12 @@ public class SQLServerMetaModel extends GenericMetaModel implements DBCQueryTran
     }
 
     @Override
-    public SQLServerGenericDatabase createCatalogImpl(GenericDataSource dataSource, String catalogName) {
+    public SQLServerGenericDatabase createCatalogImpl(@NotNull GenericDataSource dataSource, @NotNull String catalogName) {
         return new SQLServerGenericDatabase(dataSource, catalogName);
     }
 
     @Override
-    public SQLServerGenericSchema createSchemaImpl(GenericDataSource dataSource, GenericCatalog catalog, String schemaName) throws DBException {
+    public SQLServerGenericSchema createSchemaImpl(@NotNull GenericDataSource dataSource, GenericCatalog catalog, @NotNull String schemaName) throws DBException {
         return new SQLServerGenericSchema(dataSource, catalog, schemaName, 0);
     }
 
@@ -97,28 +98,35 @@ public class SQLServerMetaModel extends GenericMetaModel implements DBCQueryTran
     }
 
     @Override
-    public void loadProcedures(DBRProgressMonitor monitor, GenericObjectContainer container) throws DBException {
+    public void loadProcedures(DBRProgressMonitor monitor, @NotNull GenericObjectContainer container) throws DBException {
         if (!isSqlServer()) {
             // #4378
             GenericDataSource dataSource = container.getDataSource();
             String dbName = DBUtils.getQuotedIdentifier(container.getParentObject());
             try (JDBCSession session = DBUtils.openMetaSession(monitor, container, "Sybase procedure list")) {
+                // P – Transact-SQL or SQLJ procedure
+                // SF – scalar or user-defined functions - from SAP Adaptive Server version 16
                 try (JDBCPreparedStatement dbStat = session.prepareStatement(
-                    "select distinct so.name as proc_name,su.name as schema_name\n" +
+                    "select distinct so.name as proc_name,su.name as schema_name, so.[type] as type_name\n" +
                         "from " + dbName + ".dbo.sysobjects so, "+ dbName + ".dbo.sysusers su\n" +
-                        "where so.type = 'P'\n" +
+                        "where so.type IN ('P', 'SF')\n" +
                         "and su.uid = so.uid\n" +
                         "and su.name=?"))
                 {
                     dbStat.setString(1, container.getName());
                     try (JDBCResultSet dbResult = dbStat.executeQuery()) {
                         while (dbResult.nextRow()) {
+                            String typeName = JDBCUtils.safeGetString(dbResult, "type_name");
+                            DBSProcedureType procedureType = DBSProcedureType.PROCEDURE;
+                            if ("SF".equals(typeName)) {
+                                procedureType = DBSProcedureType.FUNCTION;
+                            }
                             final GenericProcedure procedure = createProcedureImpl(
                                 container,
                                 JDBCUtils.safeGetString(dbResult, "proc_name"),
                                 null,
                                 null,
-                                DBSProcedureType.PROCEDURE,
+                                procedureType,
                                 null);
                             procedure.setSource(JDBCUtils.safeGetString(dbResult, "definition"));
                             container.addProcedure(procedure);
@@ -389,12 +397,12 @@ public class SQLServerMetaModel extends GenericMetaModel implements DBCQueryTran
     }
 
     @Override
-    public boolean supportsSequences(GenericDataSource dataSource) {
+    public boolean supportsSequences(@NotNull GenericDataSource dataSource) {
         return getServerType() == ServerType.SQL_SERVER;
     }
 
     @Override
-    public List<GenericSequence> loadSequences(DBRProgressMonitor monitor, GenericStructContainer container) throws DBException {
+    public List<GenericSequence> loadSequences(@NotNull DBRProgressMonitor monitor, GenericStructContainer container) throws DBException {
         try (JDBCSession session = DBUtils.openMetaSession(monitor, container, "Read system sequences")) {
             try (JDBCPreparedStatement dbStat = session.prepareStatement(
                 "SELECT * FROM " + SQLServerUtils.getSystemSchemaFQN(container.getDataSource(), container.getCatalog().getName(), getSystemSchema()) + ".sequences WHERE schema_name(schema_id)=?")) {
@@ -429,12 +437,12 @@ public class SQLServerMetaModel extends GenericMetaModel implements DBCQueryTran
     }
 
     @Override
-    public boolean supportsSynonyms(GenericDataSource dataSource) {
+    public boolean supportsSynonyms(@NotNull GenericDataSource dataSource) {
         return isSqlServer();
     }
 
     @Override
-    public List<? extends GenericSynonym> loadSynonyms(DBRProgressMonitor monitor, GenericStructContainer container) throws DBException {
+    public List<? extends GenericSynonym> loadSynonyms(@NotNull DBRProgressMonitor monitor, GenericStructContainer container) throws DBException {
         try (JDBCSession session = DBUtils.openMetaSession(monitor, container, "Read system synonyms")) {
             try (JDBCPreparedStatement dbStat = session.prepareStatement(
                 "SELECT * FROM " + SQLServerUtils.getSystemSchemaFQN(container.getDataSource(), container.getCatalog().getName(), getSystemSchema()) + ".synonyms WHERE schema_name(schema_id)=?")) {

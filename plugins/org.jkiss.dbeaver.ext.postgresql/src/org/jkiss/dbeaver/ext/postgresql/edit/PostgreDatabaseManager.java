@@ -16,6 +16,7 @@
  */
 package org.jkiss.dbeaver.ext.postgresql.edit;
 
+import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.ext.postgresql.model.PostgreDataSource;
@@ -67,7 +68,7 @@ public class PostgreDatabaseManager extends SQLObjectEditor<PostgreDatabase, Pos
 
     @Override
     protected PostgreDatabase createDatabaseObject(DBRProgressMonitor monitor, DBECommandContext context, Object container, Object copyFrom, Map<String, Object> options) throws DBException {
-        return new PostgreDatabase(monitor, (PostgreDataSource) container, "NewDatabase", null, null, null, null);
+        return ((PostgreDataSource) container).createDatabaseImpl(monitor, "NewDatabase", null, null, null, null);
     }
 
     @Override
@@ -97,8 +98,8 @@ public class PostgreDatabaseManager extends SQLObjectEditor<PostgreDatabase, Pos
     }
 
     @Override
-    public void renameObject(DBECommandContext commandContext, PostgreDatabase database, String newName) throws DBException {
-        processObjectRename(commandContext, database, newName);
+    public void renameObject(@NotNull DBECommandContext commandContext, @NotNull PostgreDatabase database, @NotNull Map<String, Object> options, @NotNull String newName) throws DBException {
+        processObjectRename(commandContext, database, options, newName);
     }
 
     @Override

@@ -17,12 +17,16 @@
 
 package org.jkiss.dbeaver.ext.vertica.edit;
 
+import org.jkiss.code.NotNull;
+import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.ext.generic.edit.GenericTableColumnManager;
 import org.jkiss.dbeaver.ext.generic.model.GenericTableBase;
 import org.jkiss.dbeaver.ext.generic.model.GenericTableColumn;
 import org.jkiss.dbeaver.model.DBConstants;
 import org.jkiss.dbeaver.model.DBPEvaluationContext;
 import org.jkiss.dbeaver.model.DBUtils;
+import org.jkiss.dbeaver.model.edit.DBECommandContext;
+import org.jkiss.dbeaver.model.edit.DBEObjectRenamer;
 import org.jkiss.dbeaver.model.edit.DBEPersistAction;
 import org.jkiss.dbeaver.model.exec.DBCExecutionContext;
 import org.jkiss.dbeaver.model.impl.edit.DBECommandAbstract;
@@ -36,7 +40,7 @@ import java.util.Map;
 /**
  * Vertica table column manager
  */
-public class VerticaTableColumnManager extends GenericTableColumnManager {
+public class VerticaTableColumnManager extends GenericTableColumnManager implements DBEObjectRenamer<GenericTableColumn> {
 
     protected final ColumnModifier<GenericTableColumn> VerticaDataTypeModifier = (monitor, column, sql, command) -> {
         sql.append(" SET DATA TYPE ");
@@ -107,4 +111,21 @@ public class VerticaTableColumnManager extends GenericTableColumnManager {
         super.addObjectModifyActions(monitor, executionContext, actionList, command, options);
     }
 
+    @Override
+    protected void addObjectRenameActions(DBRProgressMonitor monitor, DBCExecutionContext executionContext, List<DBEPersistAction> actions, ObjectRenameCommand command, Map<String, Object> options)
+    {
+        final GenericTableColumn column = command.getObject();
+
+        actions.add(
+                new SQLDatabasePersistAction(
+                        "Rename column",
+                        "ALTER TABLE " + column.getTable().getFullyQualifiedName(DBPEvaluationContext.DDL) + " RENAME COLUMN " +
+                                DBUtils.getQuotedIdentifier(column.getDataSource(), command.getOldName()) +
+                                " TO " + DBUtils.getQuotedIdentifier(column.getDataSource(), command.getNewName())));
+    }
+
+    @Override
+    public void renameObject(@NotNull DBECommandContext commandContext, @NotNull GenericTableColumn object, @NotNull Map<String, Object> options, @NotNull String newName) throws DBException {
+        processObjectRename(commandContext, object, options, newName);
+    }
 }

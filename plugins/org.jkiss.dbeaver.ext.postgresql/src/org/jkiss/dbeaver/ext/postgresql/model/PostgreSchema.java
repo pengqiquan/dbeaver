@@ -38,6 +38,7 @@ import org.jkiss.dbeaver.model.impl.jdbc.cache.JDBCStructLookupCache;
 import org.jkiss.dbeaver.model.impl.jdbc.struct.JDBCTable;
 import org.jkiss.dbeaver.model.meta.Association;
 import org.jkiss.dbeaver.model.meta.Property;
+import org.jkiss.dbeaver.model.meta.PropertyLength;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.runtime.SubTaskProgressMonitor;
 import org.jkiss.dbeaver.model.sql.SQLUtils;
@@ -185,7 +186,7 @@ public class PostgreSchema implements
         this.ownerId = role == null ? 0 : role.getObjectId();
     }
 
-    @Property(viewable = true, editable = true, updatable = true, multiline = true, order = 100)
+    @Property(viewable = true, editable = true, updatable = true, length = PropertyLength.MULTILINE, order = 100)
     @Nullable
     @Override
     public String getDescription() {
@@ -456,12 +457,7 @@ public class PostgreSchema implements
     //@Property
     @Association
     public Collection<PostgreDataType> getDataTypes(DBRProgressMonitor monitor) throws DBException {
-        List<PostgreDataType> types = new ArrayList<>();
-        for (PostgreDataType dt : dataTypeCache.getAllObjects(monitor, this)) {
-            types.add(dt);
-        }
-        DBUtils.orderObjects(types);
-        return types;
+        return dataTypeCache.getAllObjects(monitor, this);
     }
 
     @Override
@@ -632,7 +628,7 @@ public class PostgreSchema implements
                     }
                 }
             }
-        } catch (SQLException e) {
+        } catch (Exception e) {
             log.debug("Error reading schema information ", e);
         }
     }
@@ -699,7 +695,7 @@ public class PostgreSchema implements
         protected PostgreAggregate fetchObject(@NotNull JDBCSession session, @NotNull PostgreSchema owner, @NotNull JDBCResultSet dbResult)
             throws SQLException, DBException
         {
-            return new PostgreAggregate(owner, dbResult);
+            return new PostgreAggregate(session.getProgressMonitor(), owner, dbResult);
         }
     }
 

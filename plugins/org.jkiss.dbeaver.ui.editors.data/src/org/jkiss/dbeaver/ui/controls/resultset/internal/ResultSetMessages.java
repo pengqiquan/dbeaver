@@ -73,6 +73,7 @@ public class ResultSetMessages extends NLS {
     public static String controls_resultset_viewer_action_view_column_type;
     public static String controls_resultset_viewer_action_view_column_types;
     public static String controls_resultset_viewer_action_data_formats;
+    public static String controls_resultset_viewer_action_binary_format;
     public static String controls_resultset_viewer_action_refresh;
     public static String controls_resultset_viewer_action_panels;
     public static String controls_resultset_viewer_action_options;
@@ -123,10 +124,10 @@ public class ResultSetMessages extends NLS {
 
     public static String actions_name_color_by;
     public static String actions_name_color_reset_by;
-	public static String actions_name_colorize_data_types;
-	public static String actions_name_row_colors;
-	public static String actions_name_structurize_complex_types;
-	public static String actions_spreadsheet_copy_special;
+    public static String actions_name_colorize_data_types;
+    public static String actions_name_row_colors;
+    public static String actions_name_structurize_complex_types;
+    public static String actions_spreadsheet_copy_special;
 
     // Data managers (FIXME: model_jdbc_ is a legacy prefix)
     public static String model_jdbc_bad_content_value_;
@@ -150,6 +151,23 @@ public class ResultSetMessages extends NLS {
     public static String dialog_value_view_job_selector_name;
     public static String dialog_value_view_label_dictionary;
 
+    public static String dialog_filter_value_edit_title;
+    public static String dialog_filter_value_edit_label_choose_values;
+    public static String dialog_filter_value_edit_label_define_description;
+    public static String dialog_filter_value_edit_text_hint;
+    public static String dialog_filter_value_edit_table_value_label;
+    public static String dialog_filter_value_edit_table_value_description;
+    public static String dialog_filter_value_edit_table_description_label;
+    public static String dialog_filter_value_edit_table_description_description;
+    public static String dialog_filter_value_edit_table_count_label;
+    public static String dialog_filter_value_edit_table_count_description;
+    public static String dialog_filter_value_edit_table_checkbox_case_insensitive_label;
+    public static String dialog_filter_value_edit_table_checkbox_case_insensitive_description;
+    public static String dialog_filter_value_edit_table_checkbox_read_from_server_label;
+    public static String dialog_filter_value_edit_table_checkbox_read_from_server_description;
+    public static String dialog_filter_value_edit_table_checkbox_show_row_count_label;
+    public static String dialog_filter_value_edit_table_checkbox_show_row_count_description;
+
     public static String dialog_control_label_massage;
     public static String dialog_cursor_view_monitor_rows_fetched;
 
@@ -165,6 +183,10 @@ public class ResultSetMessages extends NLS {
     public static String dialog_toolbar_show_all;
     public static String dialog_toolbar_show_none;
     public static String dialog_toolbar_sort;
+
+    public static String dialog_copy_as_configuration_name;
+    public static String dialog_copy_as_configuration_error_saving_processor_properties_title;
+    public static String dialog_copy_as_configuration_error_saving_processor_properties_message;
 
     // Pref pages
     public static String pref_page_content_editor_checkbox_commit_on_content_apply;
@@ -257,15 +279,10 @@ public class ResultSetMessages extends NLS {
     public static String pref_page_database_general_label_result_set_cancel_timeout;
     public static String pref_page_database_general_label_result_set_cancel_timeout_tip;
 
-	public static String pref_page_results_group_advanced;
+    public static String pref_page_results_group_advanced;
     public static String pref_page_sql_editor_group_misc;
     public static String pref_page_database_general_use_column_names;
     public static String pref_page_database_general_use_column_names_tip;
-
-	public static String value_format_selector_database_native;
-	public static String value_format_selector_display;
-	public static String value_format_selector_editable;
-	public static String value_format_selector_value;
 
     public static String dialog_text_check_box_record;
     
@@ -287,6 +304,13 @@ public class ResultSetMessages extends NLS {
     public static String virtual_edit_columns_page_dialog_button_remove;
     public static String virtual_edit_columns_page_confirm_action_delete;
     public static String virtual_edit_columns_page_confirm_action_question_delete_column;
+
+    public static String validate_unique_key_usage_dialog_title;
+    public static String validate_unique_key_usage_dialog_main_question;
+    public static String validate_unique_key_usage_dialog_use_all_columns;
+    public static String validate_unique_key_usage_dialog_custom_unique_key;
+    public static String validate_unique_key_usage_dialog_use_all_columns_no_valid_columns_found;
+    public static String validate_unique_key_usage_dialog_use_all_columns_cannot_reload_unique_columns;
 
     static {
         // initialize resource bundle

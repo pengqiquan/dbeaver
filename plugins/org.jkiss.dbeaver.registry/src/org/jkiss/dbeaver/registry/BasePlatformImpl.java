@@ -35,7 +35,7 @@ import org.jkiss.dbeaver.registry.driver.DriverDescriptor;
 import org.jkiss.dbeaver.registry.formatter.DataFormatterRegistry;
 import org.jkiss.dbeaver.registry.language.PlatformLanguageRegistry;
 import org.jkiss.dbeaver.runtime.IPluginService;
-import org.jkiss.dbeaver.runtime.jobs.KeepAliveListenerJob;
+import org.jkiss.dbeaver.runtime.jobs.DataSourceMonitorJob;
 import org.jkiss.dbeaver.utils.RuntimeUtils;
 import org.jkiss.utils.CommonUtils;
 
@@ -92,18 +92,20 @@ public abstract class BasePlatformImpl implements DBPPlatform, DBPPlatformLangua
         this.navigatorModel = new DBNModel(this, null);
         this.navigatorModel.initialize();
 
-        // Activate plugin services
-        for (IPluginService pluginService : PluginServiceRegistry.getInstance().getServices()) {
-            try {
-                pluginService.activateService();
-                activatedServices.add(pluginService);
-            } catch (Throwable e) {
-                log.error("Error activating plugin service", e);
+        if (!getApplication().isExclusiveMode()) {
+            // Activate plugin services
+            for (IPluginService pluginService : PluginServiceRegistry.getInstance().getServices()) {
+                try {
+                    pluginService.activateService();
+                    activatedServices.add(pluginService);
+                } catch (Throwable e) {
+                    log.error("Error activating plugin service", e);
+                }
             }
-        }
 
-        // Keep-alive job
-        new KeepAliveListenerJob(this).scheduleMonitor();
+            // Connections monitoring job
+            new DataSourceMonitorJob(this).scheduleMonitor();
+        }
     }
 
     public synchronized void dispose() {
@@ -177,6 +179,23 @@ public abstract class BasePlatformImpl implements DBPPlatform, DBPPlatformLangua
     }
 
     @Override
+    public boolean isLanguageChangeEnabled() {
+        File iniFile = getApplicationConfiguration();
+        if (iniFile.exists() && iniFile.canWrite()) {
+            // Try to create temp file in the same folder
+            File testFile = new File(iniFile.getParentFile(), ".test-dbeaver-" + System.currentTimeMillis() + ".ini");
+            try {
+                testFile.createNewFile();
+                testFile.delete();
+                return true;
+            } catch (IOException e) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    @Override
     public void setPlatformLanguage(@NotNull DBPPlatformLanguage language) throws DBException {
         if (CommonUtils.equalObjects(language, this.language)) {
             return;
@@ -219,6 +238,11 @@ public abstract class BasePlatformImpl implements DBPPlatform, DBPPlatformLangua
     @Override
     public File getCustomDriversHome() {
         return DriverDescriptor.getCustomDriversHome();
+    }
+
+    @Override
+    public boolean isReadOnly() {
+        return Platform.getInstanceLocation().isReadOnly();
     }
 
     // Patch config and add/update -nl parameter
